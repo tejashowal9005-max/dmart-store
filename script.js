@@ -1,6 +1,7 @@
 /* =========================================================
-   DMart Manager — with ONLINE IMAGES (picsum.photos)
-   No local files needed – works immediately on GitHub Pages.
+   DMart Manager — Local Images Only
+   Images are loaded from: ./assets/images/products/{category}/{id}.jpg
+   SVG fallback if the JPG is missing.
 ========================================================= */
 
 const STORAGE_KEY = "dmart-store-state-v1";
@@ -24,17 +25,19 @@ const PRODUCT_CATALOG = {
   Snacks: { code:"SN", price:[20,90], items:["Potato Chips 90g","Choco Cookies","Salted Namkeen 200g","Popcorn 100g","Peanuts 200g","Cashew Nuts 100g","Banana Chips 150g","Chocolate Bar","Wafer Biscuits","Energy Bar","Corn Flakes 500g","Muesli 500g","Instant Noodles Pack","Rice Crackers 100g"] },
 };
 const CATEGORIES = Object.keys(PRODUCT_CATALOG);
+
+// Colours for SVG fallback
 const CATEGORY_BG = { Grocery:"F3E0B8", Dairy:"DCEAF0", Produce:"DCEFD1", Bakery:"F1DFC2", Household:"D9E8E4", Beverages:"F3D9CB", Snacks:"F5E9B8" };
 
-/* ---------- ONLINE IMAGES (picsum.photos) – UNIQUE PER PRODUCT ---------- */
-// ✅ FIXED: Correct function with backticks and proper case
+/* ---------- LOCAL IMAGE PATH ---------- */
+const IMAGE_BASE_PATH = './assets/images/products/';
+
+// Build the image URL: ./assets/images/products/{category}/{id}.jpg
 function getProductImagePath(category, id) {
-  // Each product gets a unique permanent image using category + id as seed
-  return `https://picsum.photos/seed/${category.toLowerCase()}${id}/300/300`;
+  return `${IMAGE_BASE_PATH}${category.toLowerCase()}/${id}.jpg`;
 }
 
-// SVG fallback – just in case the online image fails
-// ✅ FIXED: Properly closed function
+// SVG fallback (colored box with category initial)
 function createSvgFallback(category) {
   const bg = CATEGORY_BG[category] || "E7EBDC";
   const initial = category.charAt(0);
@@ -42,11 +45,12 @@ function createSvgFallback(category) {
   return "data:image/svg+xml," + encodeURIComponent(svg);
 }
 
+// Get image source for a product
 function productImgSrc(p) {
   return getProductImagePath(p.category, p.id);
 }
 
-// ✅ FIXED: Proper error handler
+// Handle missing image: replace with SVG fallback
 function handleImgError(imgEl) {
   imgEl.onerror = null;
   const cat = imgEl.dataset.cat || "Grocery";
@@ -69,10 +73,12 @@ function generateSeedData(){
       const reorder = randInt(8, 22);
       const price = randInt(def.price[0], def.price[1]);
       const sku = `${def.code}-${1001+i}`;
+      // The image will be looked up on the fly using getProductImagePath
       products.push({ id: id++, name, category: cat, sku, stock, reorder, price });
     });
   });
 
+  // Customers (100)
   let customers = [];
   let cid = 1;
   FIRST_NAMES.forEach(fn=>{
@@ -84,6 +90,7 @@ function generateSeedData(){
     });
   });
 
+  // Staff (real)
   const staff = [
     { id:1, name:"Ananya Rao", role:"Store Manager", status:"on", shift:"9:00 AM – 6:00 PM" },
     { id:2, name:"Vikram Shah", role:"Cashier", status:"on", shift:"9:00 AM – 2:00 PM" },
@@ -94,6 +101,7 @@ function generateSeedData(){
     { id:7, name:"Sneha Pillai", role:"Cashier", status:"off", shift:"4:00 PM – 10:00 PM" },
   ];
 
+  // ~25 seed transactions (demo data)
   let transactions = [];
   let txCounter = 1000;
   for(let t=0;t<25;t++){
@@ -115,7 +123,14 @@ function generateSeedData(){
     const subtotal = items.reduce((s,i)=>s+i.price*i.qty,0);
     const total = Math.round(subtotal*1.05*100)/100;
     const custId = Math.random() < 0.6 ? pick(customers).id : null;
-    transactions.push({ id: ++txCounter, time: time.toISOString(), customerId:custId, items, total, cashier: pick(staff).name });
+    transactions.push({
+      id: ++txCounter,
+      time: time.toISOString(),
+      customerId: custId,
+      items,
+      total,
+      cashier: pick(staff).name
+    });
   }
   transactions.sort((a,b)=> new Date(a.time) - new Date(b.time));
 
