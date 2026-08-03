@@ -1,7 +1,6 @@
 /* =========================================================
-   DMart Manager — persistent store console
-   Data auto-saves via window.storage (Claude artifact storage).
-   Falls back to in-memory-only mode if storage isn't available.
+   DMart Manager — with ONLINE IMAGES (picsum.photos)
+   No local files needed – works immediately on GitHub Pages.
 ========================================================= */
 
 const STORAGE_KEY = "dmart-store-state-v1";
@@ -14,7 +13,7 @@ const ICONS = {
   toggle: '<svg viewBox="0 0 24 24" width="15" height="15"><path d="M4 8h13M17 8l-3-3m3 3-3 3M20 16H7m0 0 3-3m-3 3 3 3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
 };
 
-/* ---------------- SEED DATA GENERATION ---------------- */
+/* ---------------- PRODUCT CATALOG ---------------- */
 const PRODUCT_CATALOG = {
   Grocery: { code:"GR", price:[30,550], items:["Basmati Rice 5kg","Toor Dal 1kg","Moong Dal 1kg","Chana Dal 1kg","Sunflower Oil 1L","Mustard Oil 1L","Wheat Atta 5kg","Sugar 1kg","Salt 1kg","Besan 500g","Poha 500g","Rava 500g","Tea Powder 250g","Coffee Powder 200g","Turmeric Powder 100g","Jaggery 500g","Papad Pack","Mixed Pickle 200g"] },
   Dairy: { code:"DA", price:[25,250], items:["Full Cream Milk 1L","Toned Milk 1L","Paneer 200g","Curd 400g","Butter 100g","Ghee 500ml","Cheese Slices 200g","Fresh Cream 200ml","Buttermilk 500ml","Flavoured Yogurt 100g","Milk Powder 500g","Condensed Milk 400g","Ice Cream Tub 500ml"] },
@@ -27,23 +26,29 @@ const PRODUCT_CATALOG = {
 const CATEGORIES = Object.keys(PRODUCT_CATALOG);
 const CATEGORY_BG = { Grocery:"F3E0B8", Dairy:"DCEAF0", Produce:"DCEFD1", Bakery:"F1DFC2", Household:"D9E8E4", Beverages:"F3D9CB", Snacks:"F5E9B8" };
 
-// Builds a simple inline placeholder (category-colored box with initial) so a
-// missing/broken product image file never shows a broken-image icon.
-function handleImgError(imgEl){
-  imgEl.onerror = null;
-  const cat = imgEl.dataset.cat || "Grocery";
-  const bg = CATEGORY_BG[cat] || "E7EBDC";
-  const initial = cat.charAt(0);
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"><rect width="200" height="200" rx="18" fill="#${bg}"/><text x="100" y="118" text-anchor="middle" font-family="Georgia,serif" font-size="64" font-weight="700" fill="#1B3A2B">${initial}</text></svg>`;
-  imgEl.src = "data:image/svg+xml," + encodeURIComponent(svg);
+/* ---------- ONLINE IMAGES (picsum.photos) – UNIQUE PER PRODUCT ---------- */
+function getProductImagePath(category, id) {
+  // Each product gets a unique permanent image using category + id as seed
+  return `https://picsum.photos/seed/${category.toLowerCase()}${id}/300/300`;
 }
-function productImgSrc(p){
-  if(p.image) return p.image;
-  const bg = CATEGORY_BG[p.category] || "E7EBDC";
-  const initial = (p.category||"?").charAt(0);
+
+// SVG fallback – just in case the online image fails
+function createSvgFallback(category) {
+  const bg = CATEGORY_BG[category] || "E7EBDC";
+  const initial = category.charAt(0);
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"><rect width="200" height="200" rx="18" fill="#${bg}"/><text x="100" y="118" text-anchor="middle" font-family="Georgia,serif" font-size="64" font-weight="700" fill="#1B3A2B">${initial}</text></svg>`;
   return "data:image/svg+xml," + encodeURIComponent(svg);
 }
+
+function getProductImagePath(category, id) {
+  return `${/assets/images/products/}${category.toLowerCase()}/${id}.jpg`;
+}
+function handleImgError(imgEl) {
+  imgEl.onerror = null;
+  const cat = imgEl.dataset.cat || "Grocery";
+  imgEl.src = createSvgFallback(cat);
+}
+
 const FIRST_NAMES = ["Aarav","Vivaan","Aditya","Ishaan","Kabir","Ananya","Diya","Priya","Kavya","Meera"];
 const LAST_NAMES = ["Sharma","Verma","Gupta","Mehta","Nair","Iyer","Reddy","Desai","Kapoor","Joshi"];
 
@@ -51,7 +56,6 @@ function randInt(min, max){ return Math.floor(Math.random()*(max-min+1))+min; }
 function pick(arr){ return arr[randInt(0, arr.length-1)]; }
 
 function generateSeedData(){
-  // 100 products
   let products = [];
   let id = 1;
   CATEGORIES.forEach(cat=>{
@@ -61,18 +65,10 @@ function generateSeedData(){
       const reorder = randInt(8, 22);
       const price = randInt(def.price[0], def.price[1]);
       const sku = `${def.code}-${1001+i}`;
-      products.push({
-        id: id++,
-        name,
-        category: cat,
-        sku,
-        image: `images/products/${sku}.svg`,
-        stock, reorder, price
-      });
+      products.push({ id: id++, name, category: cat, sku, stock, reorder, price });
     });
   });
 
-  // 100 customers (10 first x 10 last names)
   let customers = [];
   let cid = 1;
   FIRST_NAMES.forEach(fn=>{
@@ -80,12 +76,7 @@ function generateSeedData(){
       const visits = randInt(1, 34);
       const spend = Math.round(visits * randInt(180, 650));
       const phoneBody = String(700000000 + ((cid*7919) % 99999999)).padStart(9,'0');
-      customers.push({
-        id: cid++,
-        name: `${fn} ${ln}`,
-        phone: `9${phoneBody.slice(0,4)} ${phoneBody.slice(4,9)}`,
-        visits, spend
-      });
+      customers.push({ id: cid++, name: `${fn} ${ln}`, phone: `9${phoneBody.slice(0,4)} ${phoneBody.slice(4,9)}`, visits, spend });
     });
   });
 
@@ -99,7 +90,6 @@ function generateSeedData(){
     { id:7, name:"Sneha Pillai", role:"Cashier", status:"off", shift:"4:00 PM – 10:00 PM" },
   ];
 
-  // ~25 seed transactions across the last 7 days
   let transactions = [];
   let txCounter = 1000;
   for(let t=0;t<25;t++){
@@ -121,14 +111,7 @@ function generateSeedData(){
     const subtotal = items.reduce((s,i)=>s+i.price*i.qty,0);
     const total = Math.round(subtotal*1.05*100)/100;
     const custId = Math.random() < 0.6 ? pick(customers).id : null;
-    transactions.push({
-      id: ++txCounter,
-      time: time.toISOString(),
-      customerId: custId,
-      items,
-      total,
-      cashier: pick(staff).name
-    });
+    transactions.push({ id: ++txCounter, time: time.toISOString(), customerId:custId, items, total, cashier: pick(staff).name });
   }
   transactions.sort((a,b)=> new Date(a.time) - new Date(b.time));
 
@@ -143,7 +126,7 @@ let posCategory = "";
 let editingId = null;
 let invPage = 1, custPage = 1;
 let storageAvailable = false;
-let storageMode = "none"; // "claude" | "local" | "none"
+let storageMode = "none";
 let saveTimer = null;
 let paymentMethod = "Cash";
 let pendingCheckout = null;
@@ -163,13 +146,7 @@ function toast(msg){
   toast._h = setTimeout(()=>t.classList.remove("show"), 2200);
 }
 
-/* ---------------- PERSISTENCE ----------------
-   Tries three tiers, in order, so the app persists correctly
-   wherever it's actually opened:
-   1) window.storage  — Claude's built-in artifact storage
-   2) localStorage     — real persistence when hosted on your own site/server
-   3) in-memory only    — last resort, data lost on refresh
------------------------------------------------- */
+/* ---------------- PERSISTENCE ---------------- */
 function setSyncStatus(mode, label){
   const dot = $("#syncDot");
   const lbl = $("#syncLabel");
@@ -189,7 +166,6 @@ function localStorageWorks(){
 async function loadState(){
   const hasClaudeStorage = typeof window.storage !== "undefined" && window.storage !== null;
 
-  // Tier 1: Claude artifact storage
   if(hasClaudeStorage){
     try{
       const result = await window.storage.get(STORAGE_KEY, false);
@@ -204,7 +180,6 @@ async function loadState(){
       await persist(true);
       return;
     } catch(err){
-      // key not found yet — seed fresh and try saving; if that also fails, fall through to localStorage
       try{
         state = generateSeedData();
         storageMode = "claude";
@@ -214,7 +189,6 @@ async function loadState(){
     }
   }
 
-  // Tier 2: localStorage (real persistence for your own hosted deployment)
   if(localStorageWorks()){
     storageMode = "local";
     try{
@@ -228,14 +202,12 @@ async function loadState(){
       await persist(true);
       return;
     } catch(err){
-      // corrupted data or quota issue — reseed
       state = generateSeedData();
       await persist(true);
       return;
     }
   }
 
-  // Tier 3: no persistence available at all
   storageMode = "none";
   state = generateSeedData();
   setSyncStatus("off", "Session only (no storage)");
@@ -378,11 +350,13 @@ function renderPOS(){
     (p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q))
   );
 
-  $("#posProductGrid").innerHTML = list.map(p => `
-    <button class="product-card" data-id="${p.id}" ${p.stock<=0?"disabled":""}>
-      <div class="pc-img-wrap"><img class="pc-img" src="${productImgSrc(p)}" data-cat="${p.category}" alt="${p.name}" loading="lazy" onerror="handleImgError(this)"></div>
+  $("#posProductGrid").innerHTML = list.map(p => {
+    const imgSrc = productImgSrc(p);
+    return `<button class="product-card" data-id="${p.id}" ${p.stock<=0?"disabled":""}>
+      <div class="pc-img-wrap"><img class="pc-img" src="${imgSrc}" data-cat="${p.category}" alt="${p.name}" loading="lazy" onerror="handleImgError(this)"></div>
       <span class="pc-cat">${p.category}</span><span class="pc-name">${p.name}</span><span class="pc-price">${fmt(p.price)}</span>
-    </button>`).join("") || `<p class="empty-note">No products match your search.</p>`;
+    </button>`;
+  }).join("") || `<p class="empty-note">No products match your search.</p>`;
 
   $$("#posProductGrid .product-card").forEach(b=>{
     b.addEventListener("click", ()=> addToCart(Number(b.dataset.id)));
@@ -516,7 +490,7 @@ function showReceipt(tx){
 }
 
 /* =========================================================
-   INVENTORY (paginated — 100 products)
+   INVENTORY
 ========================================================= */
 function renderInventory(){
   const catSel = $("#invCategoryFilter");
@@ -536,8 +510,9 @@ function renderInventory(){
 
   $("#invTableBody").innerHTML = pageItems.map(p=>{
     const low = p.stock <= p.reorder;
+    const imgSrc = productImgSrc(p);
     return `<tr>
-      <td><div class="row-thumb"><img src="${productImgSrc(p)}" data-cat="${p.category}" alt="${p.name}" loading="lazy" onerror="handleImgError(this)"><span>${p.name}</span></div></td>
+      <td><div class="row-thumb"><img src="${imgSrc}" data-cat="${p.category}" alt="${p.name}" loading="lazy" onerror="handleImgError(this)"><span>${p.name}</span></div></td>
       <td class="mono">${p.sku}</td><td>${p.category}</td>
       <td><span class="stock-badge ${low?'low':'ok'}">${p.stock} units</span></td>
       <td class="mono">${p.reorder}</td><td class="mono">${fmt(p.price)}</td>
@@ -675,7 +650,7 @@ function openStaffModal(id=null){
 }
 
 /* =========================================================
-   CUSTOMERS (paginated — 100 customers)
+   CUSTOMERS
 ========================================================= */
 function renderCustomers(){
   const q = ($("#custSearch").value||"").toLowerCase();
