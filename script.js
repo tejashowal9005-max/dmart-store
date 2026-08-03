@@ -27,12 +27,14 @@ const CATEGORIES = Object.keys(PRODUCT_CATALOG);
 const CATEGORY_BG = { Grocery:"F3E0B8", Dairy:"DCEAF0", Produce:"DCEFD1", Bakery:"F1DFC2", Household:"D9E8E4", Beverages:"F3D9CB", Snacks:"F5E9B8" };
 
 /* ---------- ONLINE IMAGES (picsum.photos) – UNIQUE PER PRODUCT ---------- */
+// ✅ FIXED: Correct function with backticks and proper case
 function getProductImagePath(category, id) {
   // Each product gets a unique permanent image using category + id as seed
   return `https://picsum.photos/seed/${category.toLowerCase()}${id}/300/300`;
 }
 
 // SVG fallback – just in case the online image fails
+// ✅ FIXED: Properly closed function
 function createSvgFallback(category) {
   const bg = CATEGORY_BG[category] || "E7EBDC";
   const initial = category.charAt(0);
@@ -40,9 +42,11 @@ function createSvgFallback(category) {
   return "data:image/svg+xml," + encodeURIComponent(svg);
 }
 
-function getProductImagePath(category, id) {
-  return `${/assets/images/products/}${category.toLowerCase()}/${id}.jpg`;
+function productImgSrc(p) {
+  return getProductImagePath(p.category, p.id);
 }
+
+// ✅ FIXED: Proper error handler
 function handleImgError(imgEl) {
   imgEl.onerror = null;
   const cat = imgEl.dataset.cat || "Grocery";
