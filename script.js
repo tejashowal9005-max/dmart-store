@@ -1,853 +1,819 @@
-/* =========================================================
-   DMart Manager — Local Images Only
-   Images are loaded from: ./assets/images/products/{category}/{id}.jpg
-   SVG fallback if the JPG is missing.
-========================================================= */
+/* =========================================================================
+   DMart Manager — Store Console
+   Products & customers are a real seeded master catalog (120+ SKUs).
+   There is NO fake billing history — every sale, stat, and report on
+   screen is generated only from bills you actually ring up in this app.
+   State persists locally in the browser via localStorage.
+========================================================================= */
+"use strict";
 
-const STORAGE_KEY = "dmart-store-state-v1";
-const PAGE_SIZE = 20;
+const STORAGE_KEY = "dmart-console-v1";
+const PAGE_SIZE = 18;
+const TAX_RATE = 0.05;
 
-/* ---------------- ICONS ---------------- */
-const ICONS = {
-  edit: '<svg viewBox="0 0 24 24" width="15" height="15"><path d="M4 20h4l10.5-10.5a2 2 0 0 0 0-2.8l-1.2-1.2a2 2 0 0 0-2.8 0L4 16v4z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>',
-  trash: '<svg viewBox="0 0 24 24" width="15" height="15"><path d="M5 7h14M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m-9 0 1 13a1 1 0 0 0 1 .9h8a1 1 0 0 0 1-.9l1-13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
-  toggle: '<svg viewBox="0 0 24 24" width="15" height="15"><path d="M4 8h13M17 8l-3-3m3 3-3 3M20 16H7m0 0 3-3m-3 3 3 3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+/* ---------------- PRODUCT CATALOG DEFINITION (real, seeded — 120+ SKUs) --------------- */
+const CATALOG_DEF = {
+  "Grocery & Staples": { code: "GR", price: [25, 650], items: [
+    "Basmati Rice 5kg","Sona Masoori Rice 5kg","Toor Dal 1kg","Moong Dal 1kg","Chana Dal 1kg",
+    "Masoor Dal 1kg","Sunflower Oil 1L","Mustard Oil 1L","Groundnut Oil 1L","Wheat Atta 5kg",
+    "Sugar 1kg","Iodised Salt 1kg","Besan 1kg","Poha 500g","Rava 1kg",
+    "Tea Powder 250g","Instant Coffee 100g","Turmeric Powder 100g","Red Chilli Powder 100g","Garam Masala 50g"
+  ]},
+  "Dairy & Breakfast": { code: "DA", price: [20, 320], items: [
+    "Toned Milk 1L","Full Cream Milk 1L","Curd 400g","Paneer 200g","Butter 100g",
+    "Cheese Slices 200g","Ghee 500ml","Cornflakes 500g","Oats 1kg","Bread White 400g",
+    "Brown Bread 400g","Eggs Tray 6pc"
+  ]},
+  "Fruits & Vegetables": { code: "FV", price: [15, 220], items: [
+    "Banana 1 Dozen","Apple 1kg","Onion 1kg","Potato 1kg","Tomato 1kg",
+    "Carrot 500g","Cabbage 1pc","Cauliflower 1pc","Cucumber 500g","Spinach Bunch",
+    "Capsicum 500g","Lemon 250g","Ginger 250g","Garlic 250g","Orange 1kg","Grapes 500g"
+  ]},
+  "Bakery": { code: "BK", price: [20, 180], items: [
+    "Pav Bread 6pc","Rusk 200g","Butter Cookies 200g","Chocolate Cake Slice","Sweet Bun 6pc",
+    "Khari Biscuit 200g","Chocolate Muffin 4pc","Croissant 2pc"
+  ]},
+  "Snacks & Namkeen": { code: "SN", price: [15, 150], items: [
+    "Potato Chips 100g","Namkeen Mixture 200g","Banana Chips 150g","Roasted Peanuts 200g","Popcorn 100g",
+    "Bhujia 200g","Cream Biscuits 150g","Marie Biscuits 250g","Digestive Biscuits 200g","Chocolate Bar",
+    "Wafer Rolls Pack","Instant Noodles 4-Pack","Instant Pasta 200g","Ready Soup Mix"
+  ]},
+  "Beverages": { code: "BV", price: [15, 180], items: [
+    "Mineral Water 1L","Soft Drink 750ml","Fruit Juice 1L","Energy Drink 250ml","Buttermilk 500ml",
+    "Sweet Lassi 200ml","Green Tea 25 Bags","Coconut Water 200ml","Soda 750ml","Milkshake 200ml",
+    "Iced Tea 500ml","Herbal Tea 20 Bags"
+  ]},
+  "Personal Care": { code: "PC", price: [35, 420], items: [
+    "Toothpaste 150g","Toothbrush Pack","Shampoo 340ml","Hair Oil 200ml","Bathing Soap 3-Pack",
+    "Body Lotion 200ml","Face Wash 100g","Deodorant Spray","Razor Pack","Sanitary Pads Pack",
+    "Hand Sanitizer 200ml","Face Cream 50g"
+  ]},
+  "Household & Cleaning": { code: "HH", price: [30, 380], items: [
+    "Dish Wash Liquid 500ml","Laundry Detergent 1kg","Floor Cleaner 1L","Toilet Cleaner 500ml","Glass Cleaner 500ml",
+    "Air Freshener Spray","Scrub Pads Pack","Garbage Bags Roll","Aluminium Foil 10m","Cling Wrap 10m",
+    "Mosquito Repellent","Matchbox Pack","Tissue Paper Box","Shoe Polish"
+  ]},
+  "Baby Care": { code: "BC", price: [60, 650], items: [
+    "Baby Diapers Pack M","Baby Wipes Pack","Baby Powder 200g","Baby Lotion 200ml","Baby Soap 75g","Baby Cereal 300g"
+  ]},
+  "Frozen & Ready-to-Eat": { code: "FR", price: [40, 320], items: [
+    "Frozen Green Peas 500g","Frozen Paratha 5pc","Ice Cream Tub 700ml","Frozen Chicken Nuggets 400g",
+    "Ready Meal Rice 250g","Frozen French Fries 400g","Frozen Veg Momos 400g","Frozen Sweet Corn 500g"
+  ]}
+};
+const CATEGORIES = Object.keys(CATALOG_DEF);
+const CATEGORY_BG = {
+  "Grocery & Staples":"F3E0B8", "Dairy & Breakfast":"DCEAF0", "Fruits & Vegetables":"DCEFD1",
+  "Bakery":"F1DFC2", "Snacks & Namkeen":"F5E9B8", "Beverages":"F3D9CB", "Personal Care":"E6DCEF",
+  "Household & Cleaning":"D9E8E4", "Baby Care":"F5DCE2", "Frozen & Ready-to-Eat":"D9E3F5"
 };
 
-/* ---------------- PRODUCT CATALOG ---------------- */
-const PRODUCT_CATALOG = {
-  Grocery: { code:"GR", price:[30,550], items:["Basmati Rice 5kg","Toor Dal 1kg","Moong Dal 1kg","Chana Dal 1kg","Sunflower Oil 1L","Mustard Oil 1L","Wheat Atta 5kg","Sugar 1kg","Salt 1kg","Besan 500g","Poha 500g","Rava 500g","Tea Powder 250g","Coffee Powder 200g","Turmeric Powder 100g","Jaggery 500g","Papad Pack","Mixed Pickle 200g"] },
-  Dairy: { code:"DA", price:[25,250], items:["Full Cream Milk 1L","Toned Milk 1L","Paneer 200g","Curd 400g","Butter 100g","Ghee 500ml","Cheese Slices 200g","Fresh Cream 200ml","Buttermilk 500ml","Flavoured Yogurt 100g","Milk Powder 500g","Condensed Milk 400g","Ice Cream Tub 500ml"] },
-  Produce: { code:"PR", price:[20,90], items:["Tomatoes 1kg","Onions 1kg","Potatoes 1kg","Bananas (dozen)","Apples 1kg","Oranges 1kg","Grapes 500g","Carrots 500g","Cucumber 500g","Spinach Bunch","Cauliflower 1pc","Capsicum 500g","Green Chillies 100g","Ginger-Garlic 250g"] },
-  Bakery: { code:"BK", price:[25,90], items:["Multigrain Bread","White Bread","Butter Croissant","Chocolate Muffin","Burger Buns (4pk)","Rusk 200g","Bun Pav (6pk)","Doughnut","Garlic Bread","Cupcake Pack"] },
-  Household: { code:"HH", price:[40,350], items:["Dish Wash Liquid","Laundry Detergent 1kg","Floor Cleaner 1L","Toilet Cleaner 500ml","Glass Cleaner 500ml","Air Freshener","Scrub Pads Pack","Garbage Bags Roll","Aluminium Foil","Cling Wrap","Mosquito Repellent","Matchbox Pack","Candles Pack","Tissue Paper Box","Shoe Polish","Hand Wash 250ml","Room Freshener Spray"] },
-  Beverages: { code:"BV", price:[25,150], items:["Cola 750ml","Lemon Soda 750ml","Orange Juice 1L","Apple Juice 1L","Mineral Water 1L","Soda Water 750ml","Energy Drink 250ml","Iced Tea 500ml","Coconut Water 200ml","Mango Drink 1L","Instant Coffee Mix","Green Tea Bags","Herbal Tea Bags","Soft Drink Variant Pack"] },
-  Snacks: { code:"SN", price:[20,90], items:["Potato Chips 90g","Choco Cookies","Salted Namkeen 200g","Popcorn 100g","Peanuts 200g","Cashew Nuts 100g","Banana Chips 150g","Chocolate Bar","Wafer Biscuits","Energy Bar","Corn Flakes 500g","Muesli 500g","Instant Noodles Pack","Rice Crackers 100g"] },
-};
-const CATEGORIES = Object.keys(PRODUCT_CATALOG);
-
-// Colours for SVG fallback
-const CATEGORY_BG = { Grocery:"F3E0B8", Dairy:"DCEAF0", Produce:"DCEFD1", Bakery:"F1DFC2", Household:"D9E8E4", Beverages:"F3D9CB", Snacks:"F5E9B8" };
-
-/* ---------- LOCAL IMAGE PATH ---------- */
-const IMAGE_BASE_PATH = './assets/images/products/';
-
-// Build the image URL: ./assets/images/products/{category}/{id}.jpg
-function getProductImagePath(category, id) {
-  return `${IMAGE_BASE_PATH}${category.toLowerCase()}/${id}.jpg`;
+/* ---------------- deterministic seed (same catalog every run, no randomness drift) --------------- */
+function hashStr(str){
+  let h = 2166136261;
+  for(let i=0;i<str.length;i++){ h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return (h >>> 0);
+}
+function seededRand(seed){
+  let t = seed + 0x6D2B79F5;
+  t = Math.imul(t ^ (t >>> 15), t | 1);
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
 }
 
-// SVG fallback (colored box with category initial)
-function createSvgFallback(category) {
-  const bg = CATEGORY_BG[category] || "E7EBDC";
-  const initial = category.charAt(0);
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"><rect width="200" height="200" rx="18" fill="#${bg}"/><text x="100" y="118" text-anchor="middle" font-family="Georgia,serif" font-size="64" font-weight="700" fill="#1B3A2B">${initial}</text></svg>`;
-  return "data:image/svg+xml," + encodeURIComponent(svg);
-}
-
-// Get image source for a product
-function productImgSrc(p) {
-  return getProductImagePath(p.category, p.id);
-}
-
-// Handle missing image: replace with SVG fallback
-function handleImgError(imgEl) {
-  imgEl.onerror = null;
-  const cat = imgEl.dataset.cat || "Grocery";
-  imgEl.src = createSvgFallback(cat);
-}
-
-const FIRST_NAMES = ["Aarav","Vivaan","Aditya","Ishaan","Kabir","Ananya","Diya","Priya","Kavya","Meera"];
-const LAST_NAMES = ["Sharma","Verma","Gupta","Mehta","Nair","Iyer","Reddy","Desai","Kapoor","Joshi"];
-
-function randInt(min, max){ return Math.floor(Math.random()*(max-min+1))+min; }
-function pick(arr){ return arr[randInt(0, arr.length-1)]; }
-
-function generateSeedData(){
-  let products = [];
+function buildCatalog(){
+  const products = [];
   let id = 1;
-  CATEGORIES.forEach(cat=>{
-    const def = PRODUCT_CATALOG[cat];
-    def.items.forEach((name, i)=>{
-      const stock = randInt(2, 85);
-      const reorder = randInt(8, 22);
-      const price = randInt(def.price[0], def.price[1]);
-      const sku = `${def.code}-${1001+i}`;
-      // The image will be looked up on the fly using getProductImagePath
-      products.push({ id: id++, name, category: cat, sku, stock, reorder, price });
+  CATEGORIES.forEach(cat => {
+    const def = CATALOG_DEF[cat];
+    def.items.forEach((name, i) => {
+      const baseSeed = hashStr(cat + "|" + name);
+      const r1 = seededRand(baseSeed);
+      const r2 = seededRand(baseSeed + 101);
+      const r3 = seededRand(baseSeed + 202);
+      let price = def.price[0] + r1 * (def.price[1] - def.price[0]);
+      price = price > 100 ? Math.round(price/5)*5 : Math.round(price);
+      const stock = Math.round(10 + r2 * 70);
+      const reorder = Math.round(10 + r3 * 10);
+      products.push({
+        id: id++,
+        name,
+        category: cat,
+        sku: `${def.code}-${1001+i}`,
+        price,
+        stock,
+        reorder
+      });
     });
   });
+  return products;
+}
 
-  // Customers (100)
-  let customers = [];
-  let cid = 1;
-  FIRST_NAMES.forEach(fn=>{
-    LAST_NAMES.forEach(ln=>{
-      const visits = randInt(1, 34);
-      const spend = Math.round(visits * randInt(180, 650));
-      const phoneBody = String(700000000 + ((cid*7919) % 99999999)).padStart(9,'0');
-      customers.push({ id: cid++, name: `${fn} ${ln}`, phone: `9${phoneBody.slice(0,4)} ${phoneBody.slice(4,9)}`, visits, spend });
-    });
-  });
-
-  // Staff (real)
-  const staff = [
-    { id:1, name:"Ananya Rao", role:"Store Manager", status:"on", shift:"9:00 AM – 6:00 PM" },
-    { id:2, name:"Vikram Shah", role:"Cashier", status:"on", shift:"9:00 AM – 2:00 PM" },
-    { id:3, name:"Priya Nair", role:"Cashier", status:"off", shift:"2:00 PM – 9:00 PM" },
-    { id:4, name:"Rohit Verma", role:"Stock Clerk", status:"on", shift:"8:00 AM – 4:00 PM" },
-    { id:5, name:"Meera Iyer", role:"Floor Associate", status:"off", shift:"12:00 PM – 8:00 PM" },
-    { id:6, name:"Karan Malhotra", role:"Stock Clerk", status:"on", shift:"10:00 AM – 6:00 PM" },
-    { id:7, name:"Sneha Pillai", role:"Cashier", status:"off", shift:"4:00 PM – 10:00 PM" },
+function buildCustomers(){
+  const seed = [
+    ["Aarav Sharma","98230 11245","aarav.sharma@example.com"],
+    ["Priya Nair","90210 55678","priya.nair@example.com"],
+    ["Rohan Mehta","99887 34521","rohan.mehta@example.com"],
+    ["Ananya Iyer","91234 87650","ananya.iyer@example.com"],
+    ["Vikram Desai","88990 12233","vikram.desai@example.com"],
+    ["Kavya Reddy","97865 44120","kavya.reddy@example.com"],
+    ["Ishaan Gupta","96543 22110","ishaan.gupta@example.com"],
+    ["Meera Joshi","95012 66789","meera.joshi@example.com"],
+    ["Arjun Kapoor","93421 90087","arjun.kapoor@example.com"],
+    ["Diya Verma","92110 33456","diya.verma@example.com"]
   ];
-
-  // ~25 seed transactions (demo data)
-  let transactions = [];
-  let txCounter = 1000;
-  for(let t=0;t<25;t++){
-    const daysAgo = randInt(0,6);
-    const time = new Date();
-    time.setDate(time.getDate() - daysAgo);
-    time.setHours(randInt(9,20), randInt(0,59), 0, 0);
-    const itemCount = randInt(1,5);
-    const usedIds = new Set();
-    const items = [];
-    for(let k=0;k<itemCount;k++){
-      const p = pick(products);
-      if(usedIds.has(p.id)) continue;
-      usedIds.add(p.id);
-      const qty = randInt(1,3);
-      items.push({ productId:p.id, name:p.name, qty, price:p.price });
-    }
-    if(!items.length) continue;
-    const subtotal = items.reduce((s,i)=>s+i.price*i.qty,0);
-    const total = Math.round(subtotal*1.05*100)/100;
-    const custId = Math.random() < 0.6 ? pick(customers).id : null;
-    transactions.push({
-      id: ++txCounter,
-      time: time.toISOString(),
-      customerId: custId,
-      items,
-      total,
-      cashier: pick(staff).name
-    });
-  }
-  transactions.sort((a,b)=> new Date(a.time) - new Date(b.time));
-
-  return { products, staff, customers, transactions, txCounter };
+  return seed.map((s,i) => ({ id: i+1, name: s[0], phone: s[1], email: s[2] }));
 }
 
 /* ---------------- STATE ---------------- */
-let state = { products:[], staff:[], customers:[], transactions:[], txCounter:1000 };
+let state = { products: [], customers: [], transactions: [], nextTxId: 1, nextCustId: 1, nextProdId: 1 };
 let cart = [];
 let currentView = "dashboard";
 let posCategory = "";
-let editingId = null;
-let invPage = 1, custPage = 1;
-let storageAvailable = false;
-let storageMode = "none";
-let saveTimer = null;
-let paymentMethod = "Cash";
-let pendingCheckout = null;
+let posSearchTerm = "";
+let invSearchTerm = "", invCategoryTerm = "", invPage = 1;
+let custSearchTerm = "", custPage = 1;
+let reportRange = "all";
+let payMethod = "Cash";
+let editingProductId = null;
+let editingCustomerId = null;
 
-/* ---------------- HELPERS ---------------- */
+/* ---------------- UTIL ---------------- */
 const $ = (sel, ctx=document) => ctx.querySelector(sel);
 const $$ = (sel, ctx=document) => Array.from(ctx.querySelectorAll(sel));
-const fmt = n => "₹" + Number(n).toLocaleString("en-IN", {minimumFractionDigits:2, maximumFractionDigits:2});
-const nextId = arr => arr.reduce((m,x)=>Math.max(m,x.id),0) + 1;
-function todayKey(d){ return new Date(d).toISOString().slice(0,10); }
-
+const fmt = n => "₹" + Number(n||0).toLocaleString("en-IN", {minimumFractionDigits:2, maximumFractionDigits:2});
+const esc = s => String(s==null?"":s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+function todayKey(d){ const x = new Date(d); x.setMinutes(x.getMinutes()-x.getTimezoneOffset()); return x.toISOString().slice(0,10); }
+function fmtTime(iso){ const d = new Date(iso); return d.toLocaleString("en-IN",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"}); }
+function thumb(cat, size){
+  const bg = CATEGORY_BG[cat] || "E7EBDC";
+  const initial = (cat||"?").charAt(0);
+  return `<div class="ledger-thumb" style="background:#${bg};${size?`width:${size}px;height:${size}px;`:""}">${esc(initial)}</div>`;
+}
 function toast(msg){
   const t = $("#toast");
   t.textContent = msg;
   t.classList.add("show");
-  clearTimeout(toast._h);
-  toast._h = setTimeout(()=>t.classList.remove("show"), 2200);
+  clearTimeout(toast._t);
+  toast._t = setTimeout(()=> t.classList.remove("show"), 2400);
 }
 
 /* ---------------- PERSISTENCE ---------------- */
-function setSyncStatus(mode, label){
-  const dot = $("#syncDot");
-  const lbl = $("#syncLabel");
-  dot.className = "dot " + (mode === "saved" ? "dot--live" : mode === "saving" ? "dot--busy" : "dot--off");
-  lbl.textContent = label;
+function saveState(){
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      products: state.products, customers: state.customers, transactions: state.transactions,
+      nextTxId: state.nextTxId, nextCustId: state.nextCustId, nextProdId: state.nextProdId
+    }));
+  }catch(e){ /* storage unavailable — app still works for this session */ }
+}
+function loadState(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(raw) return JSON.parse(raw);
+  }catch(e){}
+  return null;
+}
+function initState(){
+  const saved = loadState();
+  if(saved && Array.isArray(saved.products) && saved.products.length){
+    state.products = saved.products;
+    state.customers = (saved.customers && saved.customers.length) ? saved.customers : buildCustomers();
+    state.transactions = saved.transactions || [];
+    state.nextTxId = saved.nextTxId || (state.transactions.reduce((m,t)=>Math.max(m,t.id),0)+1);
+    state.nextCustId = saved.nextCustId || (state.customers.reduce((m,c)=>Math.max(m,c.id),0)+1);
+    state.nextProdId = saved.nextProdId || (state.products.reduce((m,p)=>Math.max(m,p.id),0)+1);
+  } else {
+    state.products = buildCatalog();
+    state.customers = buildCustomers();
+    state.transactions = [];
+    state.nextTxId = 1;
+    state.nextCustId = state.customers.length + 1;
+    state.nextProdId = state.products.length + 1;
+    saveState();
+  }
 }
 
-function localStorageWorks(){
-  try{
-    const testKey = "__dmart_test__";
-    window.localStorage.setItem(testKey, "1");
-    window.localStorage.removeItem(testKey);
+/* ---------------- DERIVED HELPERS ---------------- */
+function productById(id){ return state.products.find(p => p.id === Number(id)); }
+function customerById(id){ return id ? state.customers.find(c => c.id === Number(id)) : null; }
+function isLow(p){ return p.stock <= p.reorder; }
+function txInRange(range){
+  if(range === "all") return state.transactions;
+  const now = new Date();
+  return state.transactions.filter(t => {
+    const d = new Date(t.time);
+    if(range === "today") return todayKey(d) === todayKey(now);
+    if(range === "week"){ const diff=(now-d)/86400000; return diff>=0 && diff<7; }
+    if(range === "month") return d.getFullYear()===now.getFullYear() && d.getMonth()===now.getMonth();
     return true;
-  } catch(err){ return false; }
-}
-
-async function loadState(){
-  const hasClaudeStorage = typeof window.storage !== "undefined" && window.storage !== null;
-
-  if(hasClaudeStorage){
-    try{
-      const result = await window.storage.get(STORAGE_KEY, false);
-      if(result && result.value){
-        state = JSON.parse(result.value);
-        storageMode = "claude";
-        setSyncStatus("saved", "All changes saved");
-        return;
-      }
-      state = generateSeedData();
-      storageMode = "claude";
-      await persist(true);
-      return;
-    } catch(err){
-      try{
-        state = generateSeedData();
-        storageMode = "claude";
-        await persist(true);
-        return;
-      } catch(err2){ /* fall through */ }
-    }
-  }
-
-  if(localStorageWorks()){
-    storageMode = "local";
-    try{
-      const raw = window.localStorage.getItem(STORAGE_KEY);
-      if(raw){
-        state = JSON.parse(raw);
-        setSyncStatus("saved", "All changes saved (this browser)");
-        return;
-      }
-      state = generateSeedData();
-      await persist(true);
-      return;
-    } catch(err){
-      state = generateSeedData();
-      await persist(true);
-      return;
-    }
-  }
-
-  storageMode = "none";
-  state = generateSeedData();
-  setSyncStatus("off", "Session only (no storage)");
-}
-
-function persist(immediate){
-  if(storageMode === "none") return Promise.resolve();
-  if(saveTimer) clearTimeout(saveTimer);
-  if(immediate){
-    return doSave();
-  }
-  setSyncStatus("saving", "Saving…");
-  return new Promise(resolve=>{
-    saveTimer = setTimeout(async ()=>{ await doSave(); resolve(); }, 450);
   });
-}
-
-async function doSave(){
-  try{
-    if(storageMode === "claude"){
-      await window.storage.set(STORAGE_KEY, JSON.stringify(state), false);
-      const now = new Date();
-      setSyncStatus("saved", "Saved " + now.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit",second:"2-digit"}));
-    } else if(storageMode === "local"){
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-      const now = new Date();
-      setSyncStatus("saved", "Saved " + now.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit",second:"2-digit"}) + " (this browser)");
-    }
-  } catch(err){
-    setSyncStatus("off", "Save failed — retrying next change");
-  }
 }
 
 /* ---------------- NAVIGATION ---------------- */
-const viewMeta = {
+const VIEW_META = {
   dashboard: ["Dashboard", "Today's snapshot across your store"],
-  billing: ["Billing", "Ring up items and checkout customers"],
-  inventory: ["Inventory", "Track stock levels across 100 products"],
-  staff: ["Staff", "Manage schedules and store personnel"],
-  customers: ["Customers", "100 regulars and their purchase history"],
-  reports: ["Reports", "Sales performance and transaction history"],
+  billing: ["Billing", "Search products and ring up a new bill"],
+  inventory: ["Inventory", "Manage stock levels and product master data"],
+  customers: ["Customers", "Your customer directory and purchase history"],
+  reports: ["Reports", "Sales performance from real transactions"]
 };
-
 function switchView(view){
   currentView = view;
-  $$(".view").forEach(v => v.classList.remove("active"));
-  $("#view-" + view).classList.add("active");
   $$(".nav-item").forEach(b => b.classList.toggle("active", b.dataset.view === view));
-  $$(".bn-item").forEach(b => b.classList.toggle("active", b.dataset.view === view));
-  $("#viewTitle").textContent = viewMeta[view][0];
-  $("#viewSub").textContent = viewMeta[view][1];
+  $$(".view").forEach(v => v.classList.toggle("active", v.id === "view-" + view));
+  $("#viewTitle").textContent = VIEW_META[view][0];
+  $("#viewSub").textContent = VIEW_META[view][1];
   closeSidebar();
-  renderCurrentView();
-}
-function renderCurrentView(){
-  if(currentView === "dashboard") renderDashboard();
-  if(currentView === "billing") renderPOS();
-  if(currentView === "inventory") renderInventory();
-  if(currentView === "staff") renderStaff();
-  if(currentView === "customers") renderCustomers();
-  if(currentView === "reports") renderReports();
-}
-
-function openSidebar(){
-  $(".sidebar").classList.add("open");
-  let overlay = $(".sidebar-overlay");
-  if(!overlay){
-    overlay = document.createElement("div");
-    overlay.className = "sidebar-overlay";
-    document.body.appendChild(overlay);
-    overlay.addEventListener("click", closeSidebar);
-  }
-  overlay.classList.add("show");
+  if(view === "dashboard") renderDashboard();
+  if(view === "billing") renderBilling();
+  if(view === "inventory") renderInventory();
+  if(view === "customers") renderCustomers();
+  if(view === "reports") renderReports();
 }
 function closeSidebar(){
-  $(".sidebar").classList.remove("open");
-  const overlay = $(".sidebar-overlay");
-  if(overlay) overlay.classList.remove("show");
+  $("#sidebar").classList.remove("open");
+  $("#sidebarBackdrop").classList.remove("show");
 }
 
-/* =========================================================
-   DASHBOARD
-========================================================= */
+/* ================= DASHBOARD ================= */
 function renderDashboard(){
-  const today = new Date();
-  const todaysTx = state.transactions.filter(t => todayKey(t.time) === todayKey(today));
-  const todaysRevenue = todaysTx.reduce((s,t)=>s+t.total,0);
-  const lowStock = state.products.filter(p => p.stock <= p.reorder);
-  const onDuty = state.staff.filter(s => s.status === "on").length;
+  const today = txInRange("today");
+  const todaySales = today.reduce((s,t)=>s+t.total,0);
+  const lowStock = state.products.filter(isLow);
 
-  $("#statTickets").innerHTML = `
-    ${ticket("Today's Sales", fmt(todaysRevenue), `${todaysTx.length} bills`, "flat")}
-    ${ticket("Products Tracked", state.products.length, `${lowStock.length} low stock`, lowStock.length ? "down":"up")}
-    ${ticket("Staff On Duty", onDuty + " / " + state.staff.length, "currently clocked in", "flat")}
-    ${ticket("Customers", state.customers.length, "in loyalty ledger", "flat")}
-  `;
+  $("#statTickets").innerHTML = [
+    ["Today's Sales", fmt(todaySales), today.length + " bills today"],
+    ["Bills Today", today.length, "transactions rung up"],
+    ["Low Stock Items", lowStock.length, "at or below reorder level", lowStock.length>0],
+    ["Total Products", state.products.length, "SKUs in catalog"]
+  ].map(([label,val,sub,alert]) => `
+    <div class="ticket${alert?" alert":""}"><small>${esc(label)}</small><strong>${val}</strong><span>${esc(sub)}</span></div>
+  `).join("");
 
   $("#lowStockCount").textContent = lowStock.length + " items";
-  $("#lowStockLedger").innerHTML = lowStock.length ? lowStock.slice(0,6).map(p => `
-    <div class="ledger-row"><div class="lr-main"><strong>${p.name}</strong><small>${p.sku}</small></div><div class="lr-value warn">${p.stock} left</div></div>`).join("")
-    : `<p class="empty-note">Nothing low on stock right now.</p>`;
+  const lowSorted = [...lowStock].sort((a,b)=>a.stock-b.stock).slice(0,8);
+  $("#lowStockLedger").innerHTML = lowSorted.length ? lowSorted.map(p => `
+    <div class="ledger-row">
+      ${thumb(p.category)}
+      <div class="ledger-main"><strong>${esc(p.name)}</strong><small>${esc(p.sku)} · ${esc(p.category)}</small></div>
+      <div class="ledger-value low"><strong>${p.stock} left</strong>reorder at ${p.reorder}</div>
+    </div>`).join("") : `<p class="empty-note">Stock levels look healthy — nothing at reorder point.</p>`;
 
-  const recent = [...state.transactions].sort((a,b)=>new Date(b.time)-new Date(a.time)).slice(0,6);
-  $("#txCountToday").textContent = todaysTx.length + " today";
-  $("#recentTxLedger").innerHTML = recent.length ? recent.map(t => `
-    <div class="ledger-row"><div class="lr-main"><strong>Bill #${t.id}</strong><small>${new Date(t.time).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})} · ${t.items.length} items</small></div><div class="lr-value">${fmt(t.total)}</div></div>`).join("")
-    : `<p class="empty-note">No transactions yet. Head to Billing to ring up a sale.</p>`;
+  const recent = [...state.transactions].sort((a,b)=> new Date(b.time)-new Date(a.time)).slice(0,8);
+  $("#txCountToday").textContent = today.length + " today";
+  $("#recentTxLedger").innerHTML = recent.length ? recent.map(t => {
+    const cust = customerById(t.customerId);
+    return `<div class="ledger-row">
+      ${thumb(t.items[0] ? t.items[0].category : "", null)}
+      <div class="ledger-main"><strong>Bill #${t.id} · ${t.items.length} item${t.items.length>1?"s":""}</strong><small>${esc(cust?cust.name:"Walk-in")} · ${fmtTime(t.time)}</small></div>
+      <div class="ledger-value"><strong>${fmt(t.total)}</strong>${esc(t.payMethod)}</div>
+    </div>`;
+  }).join("") : `<p class="empty-note">No sales recorded yet — head to Billing to ring up your first sale.</p>`;
 
   renderSalesChart();
 }
-function ticket(label, value, delta, dir){
-  return `<div class="ticket"><div class="t-label">${label}</div><div class="t-value">${value}</div><div class="t-delta ${dir}">${delta}</div></div>`;
-}
 function renderSalesChart(){
   const days = [];
-  for(let i=6;i>=0;i--){ const d = new Date(); d.setDate(d.getDate()-i); days.push(d); }
-  const totals = days.map(d => state.transactions.filter(t=>todayKey(t.time)===todayKey(d)).reduce((s,t)=>s+t.total,0));
-  const max = Math.max(...totals, 500);
-  $("#salesChart").innerHTML = days.map((d,i)=>{
-    const h = Math.max(6, Math.round((totals[i]/max)*130));
-    return `<div class="bar-col"><span class="bar-amt">${totals[i] ? "₹"+Math.round(totals[i]) : ""}</span><div class="bar" style="height:${h}px"></div><span class="bar-label">${d.toLocaleDateString([], {weekday:"short"})}</span></div>`;
+  const now = new Date();
+  for(let i=6;i>=0;i--){
+    const d = new Date(now); d.setDate(now.getDate()-i);
+    days.push(d);
+  }
+  const totals = days.map(d => state.transactions.filter(t => todayKey(t.time)===todayKey(d)).reduce((s,t)=>s+t.total,0));
+  const max = Math.max(...totals, 1);
+  $("#weekTotalChip").textContent = fmt(totals.reduce((a,b)=>a+b,0));
+  $("#salesChart").innerHTML = days.map((d,i) => {
+    const h = Math.max(3, Math.round((totals[i]/max)*140));
+    const label = d.toLocaleDateString("en-IN",{weekday:"short"});
+    return `<div class="bar-col"><div class="bar-fill" style="height:${h}px" data-val="${fmt(totals[i])}"></div><span class="bar-label">${label}</span></div>`;
   }).join("");
 }
 
-/* =========================================================
-   BILLING / POS
-========================================================= */
-function renderPOS(){
-  $("#posCategoryChips").innerHTML = ["All", ...CATEGORIES].map(c => {
-    const val = c === "All" ? "" : c;
-    return `<button class="chip-btn ${posCategory===val?'active':''}" data-cat="${val}">${c}</button>`;
-  }).join("");
-  $$("#posCategoryChips .chip-btn").forEach(b=>{
-    b.addEventListener("click", ()=>{ posCategory = b.dataset.cat; renderPOS(); });
-  });
-
-  const q = ($("#posSearch").value || "").toLowerCase();
-  const list = state.products.filter(p =>
-    (!posCategory || p.category === posCategory) &&
-    (p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q))
-  );
-
-  $("#posProductGrid").innerHTML = list.map(p => {
-    const imgSrc = productImgSrc(p);
-    return `<button class="product-card" data-id="${p.id}" ${p.stock<=0?"disabled":""}>
-      <div class="pc-img-wrap"><img class="pc-img" src="${imgSrc}" data-cat="${p.category}" alt="${p.name}" loading="lazy" onerror="handleImgError(this)"></div>
-      <span class="pc-cat">${p.category}</span><span class="pc-name">${p.name}</span><span class="pc-price">${fmt(p.price)}</span>
-    </button>`;
-  }).join("") || `<p class="empty-note">No products match your search.</p>`;
-
-  $$("#posProductGrid .product-card").forEach(b=>{
-    b.addEventListener("click", ()=> addToCart(Number(b.dataset.id)));
-  });
-
-  const custSel = $("#cartCustomer");
-  const currentVal = custSel.value;
-  custSel.innerHTML = `<option value="">Walk-in Customer</option>` + state.customers.map(c => `<option value="${c.id}">${c.name}</option>`).join("");
-  custSel.value = currentVal;
-
+/* ================= BILLING / POS ================= */
+function renderBilling(){
+  $("#posCategoryChips").innerHTML = ["", ...CATEGORIES].map(c => `
+    <button class="cat-chip${posCategory===c?" active":""}" data-cat="${esc(c)}">${c ? esc(c) : "All"}</button>
+  `).join("");
+  renderPosGrid();
+  renderCustomerSelect();
   renderCart();
 }
-function addToCart(productId){
-  const p = state.products.find(x=>x.id===productId);
+function renderPosGrid(){
+  const term = posSearchTerm.trim().toLowerCase();
+  const list = state.products.filter(p => {
+    if(posCategory && p.category !== posCategory) return false;
+    if(term && !(p.name.toLowerCase().includes(term) || p.sku.toLowerCase().includes(term))) return false;
+    return true;
+  });
+  const grid = $("#posProductGrid");
+  if(!list.length){ grid.innerHTML = `<p class="empty-note">No products match your search.</p>`; return; }
+  grid.innerHTML = list.map(p => `
+    <button class="product-card${p.stock<=0?" out":""}" data-id="${p.id}">
+      ${isLow(p) && p.stock>0 ? `<span class="pc-badge">Low</span>` : ""}
+      <div class="pc-thumb" style="background:#${CATEGORY_BG[p.category]||"E7EBDC"}">${esc(p.category.charAt(0))}</div>
+      <div class="pc-name">${esc(p.name)}</div>
+      <div class="pc-price">${fmt(p.price)}</div>
+      <div class="pc-stock${isLow(p)?" low":""}">${p.stock<=0?"Out of stock":p.stock+" in stock"}</div>
+    </button>
+  `).join("");
+}
+function renderCustomerSelect(){
+  const sel = $("#cartCustomer");
+  const current = sel.value;
+  sel.innerHTML = `<option value="">Walk-in Customer</option>` + state.customers.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join("");
+  if(current) sel.value = current;
+}
+function addToCart(id){
+  const p = productById(id);
   if(!p || p.stock<=0) return;
-  const line = cart.find(c=>c.productId===productId);
+  const line = cart.find(c => c.id === p.id);
   const inCart = line ? line.qty : 0;
-  if(inCart >= p.stock){ toast(`Only ${p.stock} in stock for ${p.name}`); return; }
-  if(line) line.qty++; else cart.push({productId, qty:1});
+  if(inCart >= p.stock){ toast("No more stock available for " + p.name); return; }
+  if(line) line.qty++;
+  else cart.push({ id: p.id, name: p.name, price: p.price, category: p.category, sku: p.sku, qty: 1 });
   renderCart();
 }
-function changeQty(productId, delta){
-  const line = cart.find(c=>c.productId===productId);
+function changeQty(id, delta){
+  const line = cart.find(c => c.id === id);
   if(!line) return;
-  const p = state.products.find(x=>x.id===productId);
-  const newQty = line.qty + delta;
-  if(newQty <= 0){ cart = cart.filter(c=>c.productId!==productId); }
-  else if(newQty > p.stock){ toast(`Only ${p.stock} in stock`); }
-  else { line.qty = newQty; }
+  const p = productById(id);
+  const next = line.qty + delta;
+  if(next <= 0){ cart = cart.filter(c => c.id !== id); }
+  else if(p && next > p.stock){ toast("Only " + p.stock + " in stock"); }
+  else line.qty = next;
   renderCart();
 }
 function renderCart(){
-  $("#cartCount").textContent = cart.reduce((s,c)=>s+c.qty,0) + " items";
+  const list = $("#cartList");
   if(!cart.length){
-    $("#cartList").innerHTML = `<p class="empty-note">Cart is empty. Tap a product to add it.</p>`;
+    list.innerHTML = `<p class="empty-note">Cart is empty. Tap a product to add it.</p>`;
   } else {
-    $("#cartList").innerHTML = cart.map(c=>{
-      const p = state.products.find(x=>x.id===c.productId);
-      return `<div class="cart-row">
-        <div class="cr-name">${p.name}<small>${fmt(p.price)} each</small></div>
-        <div class="qty-ctrl"><button data-act="dec" data-id="${p.id}">−</button><span>${c.qty}</span><button data-act="inc" data-id="${p.id}">+</button></div>
-        <div class="cr-amt">${fmt(p.price*c.qty)}</div>
-        <button class="cr-remove" data-act="rm" data-id="${p.id}">&times;</button>
-      </div>`;
-    }).join("");
-    $$("#cartList [data-act]").forEach(b=>{
-      const id = Number(b.dataset.id);
-      b.addEventListener("click", ()=>{
-        if(b.dataset.act==="inc") changeQty(id, 1);
-        if(b.dataset.act==="dec") changeQty(id, -1);
-        if(b.dataset.act==="rm") { cart = cart.filter(c=>c.productId!==id); renderCart(); }
-      });
-    });
+    list.innerHTML = cart.map(c => `
+      <div class="cart-row" data-id="${c.id}">
+        <div class="cart-info"><strong>${esc(c.name)}</strong><small>${esc(c.sku)} · ${fmt(c.price)}</small></div>
+        <div class="qty-control">
+          <button class="qty-btn" data-act="dec" data-id="${c.id}">−</button>
+          <span class="qty-val">${c.qty}</span>
+          <button class="qty-btn" data-act="inc" data-id="${c.id}">+</button>
+        </div>
+        <button class="cart-remove" data-act="rm" data-id="${c.id}" title="Remove">&times;</button>
+      </div>
+    `).join("");
   }
-  const subtotal = cart.reduce((s,c)=>{ const p = state.products.find(x=>x.id===c.productId); return s + p.price*c.qty; },0);
-  const tax = subtotal * 0.05;
+  const subtotal = cart.reduce((s,c)=>s+c.price*c.qty,0);
+  const tax = Math.round(subtotal*TAX_RATE*100)/100;
+  const total = Math.round((subtotal+tax)*100)/100;
+  const count = cart.reduce((s,c)=>s+c.qty,0);
+  $("#cartCount").textContent = count + " item" + (count!==1?"s":"");
   $("#cartSubtotal").textContent = fmt(subtotal);
   $("#cartTax").textContent = fmt(tax);
-  $("#cartTotal").textContent = fmt(subtotal+tax);
+  $("#cartTotal").textContent = fmt(total);
+  const btn = $("#checkoutBtn");
+  btn.disabled = cart.length===0;
+  btn.textContent = "Charge " + fmt(total);
 }
 function checkout(){
-  if(!cart.length){ toast("Add items before checking out"); return; }
-  const subtotal = cart.reduce((s,c)=>{ const p = state.products.find(x=>x.id===c.productId); return s + p.price*c.qty; },0);
-  const tax = subtotal*0.05;
+  if(!cart.length) return;
+  const items = cart.map(c => ({ productId: c.id, name: c.name, price: c.price, qty: c.qty, category: c.category, sku: c.sku }));
+  const subtotal = items.reduce((s,i)=>s+i.price*i.qty,0);
+  const tax = Math.round(subtotal*TAX_RATE*100)/100;
   const total = Math.round((subtotal+tax)*100)/100;
-  const custId = $("#cartCustomer").value ? Number($("#cartCustomer").value) : null;
-
-  pendingCheckout = { total, custId };
-
-  if(paymentMethod === "UPI"){
-    openQrPay(total);
-  } else {
-    finalizeCheckout(paymentMethod);
-  }
-}
-
-async function finalizeCheckout(method){
-  if(!pendingCheckout) return;
-  const { total, custId } = pendingCheckout;
-  const cashier = (state.staff.find(s=>s.status==="on")||{}).name || "Store Staff";
-
-  const items = cart.map(c=>{
-    const p = state.products.find(x=>x.id===c.productId);
-    p.stock -= c.qty;
-    return {productId:p.id, name:p.name, qty:c.qty, price:p.price};
-  });
-
-  const tx = { id: ++state.txCounter, time: new Date().toISOString(), customerId:custId, items, total, cashier, paymentMethod: method };
+  const custVal = $("#cartCustomer").value;
+  const tx = {
+    id: state.nextTxId++,
+    time: new Date().toISOString(),
+    items, subtotal, tax, total,
+    customerId: custVal ? Number(custVal) : null,
+    payMethod
+  };
+  items.forEach(i => { const p = productById(i.productId); if(p) p.stock = Math.max(0, p.stock - i.qty); });
   state.transactions.push(tx);
-
-  if(custId){
-    const c = state.customers.find(x=>x.id===custId);
-    c.visits++; c.spend = Math.round((c.spend + total)*100)/100;
-  }
-
-  showReceipt(tx);
+  saveState();
   cart = [];
-  pendingCheckout = null;
-  renderPOS();
-  toast("Bill generated successfully");
-  await persist();
+  renderCart();
+  renderPosGrid();
+  showReceipt(tx);
+  toast("Bill #" + tx.id + " charged — " + fmt(total));
 }
-
-function openQrPay(total){
-  const upiString = `upi://pay?pa=dmartstore@okaxis&pn=DMart%20Store&am=${total.toFixed(2)}&cu=INR&tn=BillPayment`;
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(upiString)}`;
-  $("#qrImage").style.display = "block";
-  $("#qrFallback").style.display = "none";
-  $("#qrImage").src = qrUrl;
-  $("#qrAmount").textContent = fmt(total);
-  $("#qrStatus").className = "qr-status";
-  $("#qrStatus").innerHTML = `<span class="spinner-sm" style="width:14px;height:14px;"></span><span>Waiting for payment…</span>`;
-  $("#qrBackdrop").classList.add("show");
-}
-
 function showReceipt(tx){
-  const cust = tx.customerId ? state.customers.find(c=>c.id===tx.customerId) : null;
-  const payLabel = tx.paymentMethod === "UPI" ? "UPI (Scan &amp; Pay)" : tx.paymentMethod || "Cash";
+  const cust = customerById(tx.customerId);
   $("#receiptBody").innerHTML = `
-    <div class="receipt-line"><span>Bill #</span><span>${tx.id}</span></div>
-    <div class="receipt-line"><span>Time</span><span>${new Date(tx.time).toLocaleString()}</span></div>
-    <div class="receipt-line"><span>Customer</span><span>${cust ? cust.name : "Walk-in"}</span></div>
-    <div class="receipt-line"><span>Cashier</span><span>${tx.cashier}</span></div>
-    <div class="receipt-divider"></div>
-    ${tx.items.map(i=>`<div class="receipt-line"><span>${i.name} × ${i.qty}</span><span>${fmt(i.price*i.qty)}</span></div>`).join("")}
-    <div class="receipt-divider"></div>
-    <div class="receipt-line receipt-total"><span>Total</span><span>${fmt(tx.total)}</span></div>
-    <div style="text-align:center;"><span class="receipt-paytag">Paid via ${payLabel}</span></div>
+    <div class="receipt-head"><strong>DMart</strong><small>Store Console · Register 1</small></div>
+    <div class="receipt-meta">
+      <div><span>Bill No.</span><span>#${tx.id}</span></div>
+      <div><span>Date</span><span>${fmtTime(tx.time)}</span></div>
+      <div><span>Customer</span><span>${esc(cust?cust.name:"Walk-in")}</span></div>
+      <div><span>Payment</span><span>${esc(tx.payMethod)}</span></div>
+    </div>
+    <div class="receipt-items">
+      ${tx.items.map(i => `<div class="receipt-item"><span>${esc(i.name)} × ${i.qty}</span><span>${fmt(i.price*i.qty)}</span></div>`).join("")}
+    </div>
+    <div class="receipt-totals">
+      <div class="row"><span>Subtotal</span><span>${fmt(tx.subtotal)}</span></div>
+      <div class="row"><span>Tax (5%)</span><span>${fmt(tx.tax)}</span></div>
+      <div class="row grand"><span>Total</span><span>${fmt(tx.total)}</span></div>
+    </div>
+    <div class="receipt-foot">Thank you for shopping with us!</div>
   `;
   $("#receiptBackdrop").classList.add("show");
 }
 
-/* =========================================================
-   INVENTORY
-========================================================= */
+/* ================= INVENTORY ================= */
 function renderInventory(){
   const catSel = $("#invCategoryFilter");
-  if(!catSel.dataset.built){
-    catSel.innerHTML += CATEGORIES.map(c=>`<option value="${c}">${c}</option>`).join("");
-    catSel.dataset.built = "1";
+  if(!catSel.dataset.filled){
+    catSel.innerHTML = `<option value="">All categories</option>` + CATEGORIES.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join("");
+    catSel.dataset.filled = "1";
   }
-  const q = ($("#invSearch").value||"").toLowerCase();
-  const cat = catSel.value;
-  const filtered = state.products.filter(p =>
-    (!cat || p.category===cat) &&
-    (p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q))
-  );
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  if(invPage > totalPages) invPage = totalPages;
-  const pageItems = filtered.slice((invPage-1)*PAGE_SIZE, invPage*PAGE_SIZE);
-
-  $("#invTableBody").innerHTML = pageItems.map(p=>{
-    const low = p.stock <= p.reorder;
-    const imgSrc = productImgSrc(p);
-    return `<tr>
-      <td><div class="row-thumb"><img src="${imgSrc}" data-cat="${p.category}" alt="${p.name}" loading="lazy" onerror="handleImgError(this)"><span>${p.name}</span></div></td>
-      <td class="mono">${p.sku}</td><td>${p.category}</td>
-      <td><span class="stock-badge ${low?'low':'ok'}">${p.stock} units</span></td>
-      <td class="mono">${p.reorder}</td><td class="mono">${fmt(p.price)}</td>
-      <td><div class="row-actions">
-        <button class="btn-icon" data-act="edit" data-id="${p.id}" title="Edit">${ICONS.edit}</button>
-        <button class="btn-icon" data-act="del" data-id="${p.id}" title="Delete">${ICONS.trash}</button>
-      </div></td>
-    </tr>`;
-  }).join("") || `<tr><td colspan="7" class="empty-note">No products found.</td></tr>`;
-
-  $("#invPager").innerHTML = `
-    <span>${filtered.length} products · page ${invPage} of ${totalPages}</span>
-    <div class="row-actions">
-      <button id="invPrev" ${invPage<=1?"disabled":""}>Prev</button>
-      <button id="invNext" ${invPage>=totalPages?"disabled":""}>Next</button>
-    </div>`;
-  $("#invPrev").addEventListener("click", ()=>{ invPage--; renderInventory(); });
-  $("#invNext").addEventListener("click", ()=>{ invPage++; renderInventory(); });
-
-  $$("#invTableBody [data-act]").forEach(b=>{
-    const id = Number(b.dataset.id);
-    b.addEventListener("click", ()=>{
-      if(b.dataset.act==="edit") openProductModal(id);
-      if(b.dataset.act==="del") deleteProduct(id);
-    });
+  const term = invSearchTerm.trim().toLowerCase();
+  let list = state.products.filter(p => {
+    if(invCategoryTerm && p.category !== invCategoryTerm) return false;
+    if(term && !(p.name.toLowerCase().includes(term) || p.sku.toLowerCase().includes(term))) return false;
+    return true;
   });
-}
-async function deleteProduct(id){
-  const p = state.products.find(x=>x.id===id);
-  if(!confirm(`Remove "${p.name}" from inventory?`)) return;
-  state.products = state.products.filter(x=>x.id!==id);
-  renderInventory();
-  toast("Product removed");
-  await persist();
-}
-function openProductModal(id=null){
-  editingId = id;
-  const p = id ? state.products.find(x=>x.id===id) : null;
-  $("#modalTitle").textContent = p ? "Edit Product" : "Add Product";
-  $("#modalBody").innerHTML = `
-    <div class="field"><label>Product Name</label><input id="f-name" value="${p?p.name:""}" placeholder="e.g. Basmati Rice 5kg"></div>
-    <div class="form-row">
-      <div class="field"><label>Category</label><select id="f-cat">${CATEGORIES.map(c=>`<option ${p&&p.category===c?"selected":""}>${c}</option>`).join("")}</select></div>
-      <div class="field"><label>SKU</label><input id="f-sku" value="${p?p.sku:""}" placeholder="e.g. GR-1010"></div>
-    </div>
-    <div class="form-row">
-      <div class="field"><label>Stock Quantity</label><input id="f-stock" type="number" min="0" value="${p?p.stock:0}"></div>
-      <div class="field"><label>Reorder Level</label><input id="f-reorder" type="number" min="0" value="${p?p.reorder:10}"></div>
-    </div>
-    <div class="field"><label>Price (₹)</label><input id="f-price" type="number" min="0" step="0.01" value="${p?p.price:0}"></div>
-    <button class="btn btn-primary btn-block" id="saveProductBtn">${p?"Save Changes":"Add Product"}</button>
-  `;
-  $("#saveProductBtn").addEventListener("click", saveProduct);
-  openModal();
-}
-async function saveProduct(){
-  const name = $("#f-name").value.trim();
-  const category = $("#f-cat").value;
-  const sku = $("#f-sku").value.trim();
-  const stock = Number($("#f-stock").value);
-  const reorder = Number($("#f-reorder").value);
-  const price = Number($("#f-price").value);
-  if(!name || !sku){ toast("Please fill in product name and SKU"); return; }
+  list.sort((a,b)=>a.name.localeCompare(b.name));
+  const pages = Math.max(1, Math.ceil(list.length/PAGE_SIZE));
+  invPage = Math.min(invPage, pages);
+  const pageItems = list.slice((invPage-1)*PAGE_SIZE, invPage*PAGE_SIZE);
 
-  if(editingId){
-    Object.assign(state.products.find(x=>x.id===editingId), {name, category, sku, stock, reorder, price});
+  $("#invTableBody").innerHTML = pageItems.length ? pageItems.map(p => `
+    <tr>
+      <td><div class="prod-cell">${thumb(p.category)}<span>${esc(p.name)}</span></div></td>
+      <td><span style="font-family:var(--font-mono);font-size:12px;">${esc(p.sku)}</span></td>
+      <td>${esc(p.category)}</td>
+      <td>${fmt(p.price)}</td>
+      <td>${p.stock}</td>
+      <td>${isLow(p) ? `<span class="badge badge--low">Low stock</span>` : `<span class="badge badge--ok">In stock</span>`}</td>
+      <td><div class="row-actions"><button data-act="edit-prod" data-id="${p.id}">Edit</button><button data-act="del-prod" data-id="${p.id}">Delete</button></div></td>
+    </tr>
+  `).join("") : `<tr><td colspan="7"><p class="empty-note">No products match your search.</p></td></tr>`;
+
+  renderPagination("#invPagination", invPage, pages, (p)=>{ invPage=p; renderInventory(); });
+}
+function renderPagination(sel, page, pages, onGo){
+  const el = $(sel);
+  if(pages<=1){ el.innerHTML=""; return; }
+  let html = `<button data-page="${page-1}" ${page===1?"disabled":""}>‹</button>`;
+  for(let i=1;i<=pages;i++){
+    if(pages>7 && i!==1 && i!==pages && Math.abs(i-page)>1){ if(i===2||i===pages-1) html+=`<span style="padding:0 4px;color:var(--ink-soft);">…</span>`; continue; }
+    html += `<button data-page="${i}" class="${i===page?"active":""}">${i}</button>`;
+  }
+  html += `<button data-page="${page+1}" ${page===pages?"disabled":""}>›</button>`;
+  el.innerHTML = html;
+  $$("button[data-page]", el).forEach(b => b.addEventListener("click", () => {
+    const p = Number(b.dataset.page);
+    if(p>=1 && p<=pages) onGo(p);
+  }));
+}
+function openProductModal(id){
+  editingProductId = id || null;
+  const p = id ? productById(id) : null;
+  $("#genericModalTitle").textContent = p ? "Edit Product" : "Add Product";
+  $("#genericModalBody").innerHTML = `
+    <div class="form-row"><label>Product name</label><input id="fProdName" type="text" value="${p?esc(p.name):""}" placeholder="e.g. Basmati Rice 5kg"></div>
+    <div class="form-grid">
+      <div class="form-row"><label>Category</label><select id="fProdCat">${CATEGORIES.map(c=>`<option value="${esc(c)}" ${p&&p.category===c?"selected":""}>${esc(c)}</option>`).join("")}</select></div>
+      <div class="form-row"><label>SKU</label><input id="fProdSku" type="text" value="${p?esc(p.sku):""}" placeholder="auto if blank"></div>
+      <div class="form-row"><label>Price (₹)</label><input id="fProdPrice" type="number" min="0" step="0.5" value="${p?p.price:""}"></div>
+      <div class="form-row"><label>Stock</label><input id="fProdStock" type="number" min="0" step="1" value="${p?p.stock:""}"></div>
+      <div class="form-row"><label>Reorder level</label><input id="fProdReorder" type="number" min="0" step="1" value="${p?p.reorder:10}"></div>
+    </div>
+    <p class="form-error" id="fProdError"></p>
+    <div class="form-actions">
+      <button class="btn btn-ghost" id="fProdCancel">Cancel</button>
+      <button class="btn btn-primary" id="fProdSave">${p?"Save Changes":"Add Product"}</button>
+    </div>
+  `;
+  $("#genericBackdrop").classList.add("show");
+  $("#fProdCancel").addEventListener("click", closeGenericModal);
+  $("#fProdSave").addEventListener("click", saveProduct);
+}
+function saveProduct(){
+  const name = $("#fProdName").value.trim();
+  const category = $("#fProdCat").value;
+  let sku = $("#fProdSku").value.trim();
+  const price = Number($("#fProdPrice").value);
+  const stock = Number($("#fProdStock").value);
+  const reorder = Number($("#fProdReorder").value);
+  const err = $("#fProdError");
+  if(!name || !category || isNaN(price) || price<0 || isNaN(stock) || stock<0 || isNaN(reorder) || reorder<0){
+    err.textContent = "Please fill in every field with valid values."; err.classList.add("show"); return;
+  }
+  if(!sku) sku = (CATALOG_DEF[category]?.code || "GEN") + "-" + Math.floor(1000+Math.random()*8999);
+  if(editingProductId){
+    const p = productById(editingProductId);
+    Object.assign(p, { name, category, sku, price, stock, reorder });
     toast("Product updated");
   } else {
-    state.products.push({id: nextId(state.products), name, category, sku, stock, reorder, price});
+    state.products.push({ id: state.nextProdId++, name, category, sku, price, stock, reorder });
     toast("Product added");
   }
-  closeModal();
+  saveState();
+  closeGenericModal();
   renderInventory();
-  if(currentView==="billing") renderPOS();
-  await persist();
+  if(currentView==="billing") renderPosGrid();
+  if(currentView==="dashboard") renderDashboard();
 }
-
-/* =========================================================
-   STAFF
-========================================================= */
-function renderStaff(){
-  const q = ($("#staffSearch").value||"").toLowerCase();
-  const list = state.staff.filter(s=>s.name.toLowerCase().includes(q) || s.role.toLowerCase().includes(q));
-  $("#staffGrid").innerHTML = list.map(s=>`
-    <div class="staff-card">
-      <div class="sc-top"><div class="avatar">${s.name.split(" ").map(n=>n[0]).join("").slice(0,2)}</div><div><strong>${s.name}</strong><small>${s.role}</small></div></div>
-      <div class="sc-meta"><span>${s.shift}</span><span class="status-dot ${s.status==='on'?'on':'off'}"><span class="dot"></span>${s.status==='on'?'On duty':'Off duty'}</span></div>
-      <div class="row-actions" style="margin-top:12px;">
-        <button class="btn-icon" data-act="toggle" data-id="${s.id}" title="Toggle status">${ICONS.toggle}</button>
-        <button class="btn-icon" data-act="edit" data-id="${s.id}" title="Edit">${ICONS.edit}</button>
-        <button class="btn-icon" data-act="del" data-id="${s.id}" title="Remove">${ICONS.trash}</button>
-      </div>
-    </div>`).join("") || `<p class="empty-note">No staff found.</p>`;
-
-  $$("#staffGrid [data-act]").forEach(b=>{
-    const id = Number(b.dataset.id);
-    b.addEventListener("click", async ()=>{
-      if(b.dataset.act==="edit") openStaffModal(id);
-      if(b.dataset.act==="del"){
-        if(confirm("Remove this staff member?")){ state.staff = state.staff.filter(x=>x.id!==id); renderStaff(); toast("Staff removed"); await persist(); }
-      }
-      if(b.dataset.act==="toggle"){
-        const s = state.staff.find(x=>x.id===id);
-        s.status = s.status==="on" ? "off" : "on";
-        renderStaff(); renderDashboard(); await persist();
-      }
-    });
-  });
-}
-function openStaffModal(id=null){
-  editingId=id;
-  const s = id ? state.staff.find(x=>x.id===id) : null;
-  $("#modalTitle").textContent = s ? "Edit Staff" : "Add Staff";
-  $("#modalBody").innerHTML = `
-    <div class="field"><label>Full Name</label><input id="f-sname" value="${s?s.name:""}" placeholder="e.g. Rahul Kumar"></div>
-    <div class="field"><label>Role</label><input id="f-srole" value="${s?s.role:""}" placeholder="e.g. Cashier"></div>
-    <div class="field"><label>Shift</label><input id="f-sshift" value="${s?s.shift:""}" placeholder="e.g. 9:00 AM – 5:00 PM"></div>
-    <button class="btn btn-primary btn-block" id="saveStaffBtn">${s?"Save Changes":"Add Staff"}</button>
+function confirmDeleteProduct(id){
+  const p = productById(id);
+  if(!p) return;
+  $("#genericModalTitle").textContent = "Delete Product";
+  $("#genericModalBody").innerHTML = `
+    <p class="confirm-text">Remove <strong>${esc(p.name)}</strong> (${esc(p.sku)}) from your catalog? Past bills that included it are not affected.</p>
+    <div class="form-actions"><button class="btn btn-ghost" id="delProdCancel">Cancel</button><button class="btn btn-danger" id="delProdConfirm">Delete</button></div>
   `;
-  $("#saveStaffBtn").addEventListener("click", async ()=>{
-    const name = $("#f-sname").value.trim();
-    const role = $("#f-srole").value.trim();
-    const shift = $("#f-sshift").value.trim();
-    if(!name || !role){ toast("Please fill in name and role"); return; }
-    if(editingId){
-      Object.assign(state.staff.find(x=>x.id===editingId), {name, role, shift});
-      toast("Staff updated");
-    } else {
-      state.staff.push({id: nextId(state.staff), name, role, shift, status:"off"});
-      toast("Staff added");
-    }
-    closeModal(); renderStaff(); await persist();
-  });
-  openModal();
-}
-
-/* =========================================================
-   CUSTOMERS
-========================================================= */
-function renderCustomers(){
-  const q = ($("#custSearch").value||"").toLowerCase();
-  const filtered = state.customers.filter(c=>c.name.toLowerCase().includes(q) || c.phone.includes(q));
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  if(custPage > totalPages) custPage = totalPages;
-  const pageItems = filtered.slice((custPage-1)*PAGE_SIZE, custPage*PAGE_SIZE);
-
-  $("#custTableBody").innerHTML = pageItems.map(c=>`
-    <tr><td>${c.name}</td><td class="mono">${c.phone}</td><td class="mono">${c.visits}</td><td class="mono">${fmt(c.spend)}</td>
-    <td><div class="row-actions">
-      <button class="btn-icon" data-act="edit" data-id="${c.id}" title="Edit">${ICONS.edit}</button>
-      <button class="btn-icon" data-act="del" data-id="${c.id}" title="Delete">${ICONS.trash}</button>
-    </div></td></tr>`).join("") || `<tr><td colspan="5" class="empty-note">No customers found.</td></tr>`;
-
-  $("#custPager").innerHTML = `
-    <span>${filtered.length} customers · page ${custPage} of ${totalPages}</span>
-    <div class="row-actions"><button id="custPrev" ${custPage<=1?"disabled":""}>Prev</button><button id="custNext" ${custPage>=totalPages?"disabled":""}>Next</button></div>`;
-  $("#custPrev").addEventListener("click", ()=>{ custPage--; renderCustomers(); });
-  $("#custNext").addEventListener("click", ()=>{ custPage++; renderCustomers(); });
-
-  $$("#custTableBody [data-act]").forEach(b=>{
-    const id = Number(b.dataset.id);
-    b.addEventListener("click", async ()=>{
-      if(b.dataset.act==="edit") openCustomerModal(id);
-      if(b.dataset.act==="del"){
-        if(confirm("Remove this customer?")){ state.customers = state.customers.filter(x=>x.id!==id); renderCustomers(); toast("Customer removed"); await persist(); }
-      }
-    });
-  });
-}
-function openCustomerModal(id=null){
-  editingId=id;
-  const c = id ? state.customers.find(x=>x.id===id) : null;
-  $("#modalTitle").textContent = c ? "Edit Customer" : "Add Customer";
-  $("#modalBody").innerHTML = `
-    <div class="field"><label>Full Name</label><input id="f-cname" value="${c?c.name:""}" placeholder="e.g. Divya Kapoor"></div>
-    <div class="field"><label>Phone</label><input id="f-cphone" value="${c?c.phone:""}" placeholder="e.g. 98xxx xxxxx"></div>
-    <button class="btn btn-primary btn-block" id="saveCustBtn">${c?"Save Changes":"Add Customer"}</button>
-  `;
-  $("#saveCustBtn").addEventListener("click", async ()=>{
-    const name = $("#f-cname").value.trim();
-    const phone = $("#f-cphone").value.trim();
-    if(!name || !phone){ toast("Please fill in name and phone"); return; }
-    if(editingId){
-      Object.assign(state.customers.find(x=>x.id===editingId), {name, phone});
-      toast("Customer updated");
-    } else {
-      state.customers.push({id: nextId(state.customers), name, phone, visits:0, spend:0});
-      toast("Customer added");
-    }
-    closeModal(); renderCustomers(); await persist();
-  });
-  openModal();
-}
-
-/* =========================================================
-   REPORTS
-========================================================= */
-function renderReports(){
-  const totalRevenue = state.transactions.reduce((s,t)=>s+t.total,0);
-  const avgBill = state.transactions.length ? totalRevenue/state.transactions.length : 0;
-  const topProduct = (()=>{
-    const counts = {};
-    state.transactions.forEach(t=>t.items.forEach(i=>{ counts[i.name]=(counts[i.name]||0)+i.qty; }));
-    const entries = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
-    return entries.length ? `${entries[0][0]} (${entries[0][1]})` : "—";
-  })();
-
-  $("#reportTickets").innerHTML = `
-    ${ticket("Total Revenue", fmt(totalRevenue), `${state.transactions.length} bills`, "flat")}
-    ${ticket("Average Bill", fmt(avgBill), "per transaction", "flat")}
-    ${ticket("Top Seller", topProduct, "by units sold", "up")}
-  `;
-
-  const sorted = [...state.transactions].sort((a,b)=>new Date(b.time)-new Date(a.time));
-  $("#txTableBody").innerHTML = sorted.map(t=>{
-    const cust = t.customerId ? state.customers.find(c=>c.id===t.customerId) : null;
-    return `<tr><td class="mono">#${t.id}</td><td>${new Date(t.time).toLocaleString()}</td><td>${cust?cust.name:"Walk-in"}</td><td>${t.items.reduce((s,i)=>s+i.qty,0)} units</td><td>${t.cashier}</td><td>${t.paymentMethod||"Cash"}</td><td class="mono">${fmt(t.total)}</td></tr>`;
-  }).join("") || `<tr><td colspan="7" class="empty-note">No transactions recorded yet.</td></tr>`;
-}
-
-/* =========================================================
-   MODAL controls
-========================================================= */
-function openModal(){ $("#modalBackdrop").classList.add("show"); }
-function closeModal(){ $("#modalBackdrop").classList.remove("show"); editingId=null; }
-
-/* =========================================================
-   INIT
-========================================================= */
-function updateClock(){
-  $("#shiftClock").textContent = new Date().toLocaleTimeString([], {hour:"2-digit", minute:"2-digit", second:"2-digit"});
-}
-
-async function init(){
-  $$(".nav-item").forEach(b => b.addEventListener("click", ()=>switchView(b.dataset.view)));
-  $$(".bn-item").forEach(b => b.addEventListener("click", ()=>switchView(b.dataset.view)));
-  $("#hamburger").addEventListener("click", openSidebar);
-  $("#quickBillBtn").addEventListener("click", ()=>switchView("billing"));
-
-  $("#fullscreenBtn").addEventListener("click", ()=>{
-    if(!document.fullscreenElement){
-      document.documentElement.requestFullscreen?.().catch(()=>{});
-    } else {
-      document.exitFullscreen?.().catch(()=>{});
-    }
-  });
-  document.addEventListener("fullscreenchange", ()=>{
-    const isFs = !!document.fullscreenElement;
-    $("#fsExpandIcon").style.display = isFs ? "none" : "block";
-    $("#fsCompressIcon").style.display = isFs ? "block" : "none";
-  });
-  $("#modalClose").addEventListener("click", closeModal);
-  $("#modalBackdrop").addEventListener("click", e=>{ if(e.target.id==="modalBackdrop") closeModal(); });
-  $("#receiptClose").addEventListener("click", ()=> $("#receiptBackdrop").classList.remove("show"));
-  $("#receiptBackdrop").addEventListener("click", e=>{ if(e.target.id==="receiptBackdrop") $("#receiptBackdrop").classList.remove("show"); });
-  $("#addProductBtn").addEventListener("click", ()=>openProductModal());
-  $("#addStaffBtn").addEventListener("click", ()=>openStaffModal());
-  $("#addCustBtn").addEventListener("click", ()=>openCustomerModal());
-  $("#invSearch").addEventListener("input", ()=>{ invPage=1; renderInventory(); });
-  $("#invCategoryFilter").addEventListener("change", ()=>{ invPage=1; renderInventory(); });
-  $("#staffSearch").addEventListener("input", renderStaff);
-  $("#custSearch").addEventListener("input", ()=>{ custPage=1; renderCustomers(); });
-  $("#posSearch").addEventListener("input", renderPOS);
-  $("#checkoutBtn").addEventListener("click", checkout);
-  $("#clearCartBtn").addEventListener("click", ()=>{ cart=[]; renderCart(); });
-
-  $$("#payMethodRow .pay-opt").forEach(b=>{
-    b.addEventListener("click", ()=>{
-      paymentMethod = b.dataset.pay;
-      $$("#payMethodRow .pay-opt").forEach(x=>x.classList.toggle("active", x===b));
-    });
-  });
-
-  $("#qrConfirmBtn").addEventListener("click", async ()=>{
-    $("#qrStatus").className = "qr-status confirmed";
-    $("#qrStatus").innerHTML = `<span>✓</span><span>Payment confirmed</span>`;
-    await new Promise(r=>setTimeout(r, 400));
-    $("#qrBackdrop").classList.remove("show");
-    await finalizeCheckout("UPI");
-  });
-  $("#qrCancelBtn").addEventListener("click", ()=>{
-    $("#qrBackdrop").classList.remove("show");
-    pendingCheckout = null;
-  });
-  $("#qrClose").addEventListener("click", ()=>{
-    $("#qrBackdrop").classList.remove("show");
-    pendingCheckout = null;
-  });
-
-  $("#printReceiptBtn").addEventListener("click", ()=> window.print());
-  $("#resetDataBtn").addEventListener("click", async ()=>{
-    if(!confirm("Reset all data back to the original 100-product demo set? This clears every edit you've made.")) return;
-    state = generateSeedData();
-    invPage=1; custPage=1; cart=[];
-    renderCurrentView();
-    toast("Demo data reset");
-    await persist(true);
-  });
-  $("#globalSearch").addEventListener("input", (e)=>{
-    const val = e.target.value;
-    if(val.length < 2) return;
-    switchView("inventory");
-    $("#invSearch").value = val;
-    invPage = 1;
+  $("#genericBackdrop").classList.add("show");
+  $("#delProdCancel").addEventListener("click", closeGenericModal);
+  $("#delProdConfirm").addEventListener("click", () => {
+    state.products = state.products.filter(x => x.id !== id);
+    saveState();
+    closeGenericModal();
     renderInventory();
+    if(currentView==="billing") renderPosGrid();
+    toast("Product deleted");
   });
-
-  updateClock();
-  setInterval(updateClock, 1000);
-
-  await loadState();
-  renderDashboard();
-
-  const boot = $("#bootScreen");
-  boot.classList.add("hide");
-  setTimeout(()=>boot.remove(), 350);
 }
 
-document.addEventListener("DOMContentLoaded", init);
+/* ================= CUSTOMERS ================= */
+function customerStats(id){
+  const tx = state.transactions.filter(t => t.customerId === id);
+  const spend = tx.reduce((s,t)=>s+t.total,0);
+  const last = tx.length ? tx.reduce((a,b)=> new Date(a.time)>new Date(b.time)?a:b).time : null;
+  return { visits: tx.length, spend, last };
+}
+function renderCustomers(){
+  const term = custSearchTerm.trim().toLowerCase();
+  let list = state.customers.filter(c => !term || c.name.toLowerCase().includes(term) || c.phone.includes(term));
+  list.sort((a,b)=>a.name.localeCompare(b.name));
+  const pages = Math.max(1, Math.ceil(list.length/PAGE_SIZE));
+  custPage = Math.min(custPage, pages);
+  const pageItems = list.slice((custPage-1)*PAGE_SIZE, custPage*PAGE_SIZE);
+
+  $("#custTableBody").innerHTML = pageItems.length ? pageItems.map(c => {
+    const stats = customerStats(c.id);
+    return `<tr>
+      <td><strong>${esc(c.name)}</strong></td>
+      <td><span style="font-family:var(--font-mono);font-size:12px;">${esc(c.phone)}</span></td>
+      <td>${esc(c.email||"—")}</td>
+      <td>${stats.visits}</td>
+      <td>${fmt(stats.spend)}</td>
+      <td>${stats.last ? fmtTime(stats.last) : "—"}</td>
+      <td><div class="row-actions"><button data-act="edit-cust" data-id="${c.id}">Edit</button><button data-act="del-cust" data-id="${c.id}">Delete</button></div></td>
+    </tr>`;
+  }).join("") : `<tr><td colspan="7"><p class="empty-note">No customers match your search.</p></td></tr>`;
+
+  renderPagination("#custPagination", custPage, pages, (p)=>{ custPage=p; renderCustomers(); });
+}
+function openCustomerModal(id){
+  editingCustomerId = id || null;
+  const c = id ? customerById(id) : null;
+  $("#genericModalTitle").textContent = c ? "Edit Customer" : "Add Customer";
+  $("#genericModalBody").innerHTML = `
+    <div class="form-row"><label>Full name</label><input id="fCustName" type="text" value="${c?esc(c.name):""}" placeholder="e.g. Rahul Singh"></div>
+    <div class="form-row"><label>Phone</label><input id="fCustPhone" type="text" value="${c?esc(c.phone):""}" placeholder="98xxx xxxxx"></div>
+    <div class="form-row"><label>Email (optional)</label><input id="fCustEmail" type="email" value="${c?esc(c.email||""):""}" placeholder="name@example.com"></div>
+    <p class="form-error" id="fCustError"></p>
+    <div class="form-actions">
+      <button class="btn btn-ghost" id="fCustCancel">Cancel</button>
+      <button class="btn btn-primary" id="fCustSave">${c?"Save Changes":"Add Customer"}</button>
+    </div>
+  `;
+  $("#genericBackdrop").classList.add("show");
+  $("#fCustCancel").addEventListener("click", closeGenericModal);
+  $("#fCustSave").addEventListener("click", saveCustomer);
+}
+function saveCustomer(){
+  const name = $("#fCustName").value.trim();
+  const phone = $("#fCustPhone").value.trim();
+  const email = $("#fCustEmail").value.trim();
+  const err = $("#fCustError");
+  if(!name || !phone){ err.textContent = "Name and phone are required."; err.classList.add("show"); return; }
+  if(editingCustomerId){
+    const c = customerById(editingCustomerId);
+    Object.assign(c, { name, phone, email });
+    toast("Customer updated");
+  } else {
+    state.customers.push({ id: state.nextCustId++, name, phone, email });
+    toast("Customer added");
+  }
+  saveState();
+  closeGenericModal();
+  renderCustomers();
+  if(currentView==="billing") renderCustomerSelect();
+}
+function confirmDeleteCustomer(id){
+  const c = customerById(id);
+  if(!c) return;
+  $("#genericModalTitle").textContent = "Delete Customer";
+  $("#genericModalBody").innerHTML = `
+    <p class="confirm-text">Remove <strong>${esc(c.name)}</strong> from your directory? Their past bills stay on record.</p>
+    <div class="form-actions"><button class="btn btn-ghost" id="delCustCancel">Cancel</button><button class="btn btn-danger" id="delCustConfirm">Delete</button></div>
+  `;
+  $("#genericBackdrop").classList.add("show");
+  $("#delCustCancel").addEventListener("click", closeGenericModal);
+  $("#delCustConfirm").addEventListener("click", () => {
+    state.customers = state.customers.filter(x => x.id !== id);
+    saveState();
+    closeGenericModal();
+    renderCustomers();
+    if(currentView==="billing") renderCustomerSelect();
+    toast("Customer deleted");
+  });
+}
+
+/* ================= REPORTS ================= */
+function renderReports(){
+  const tx = txInRange(reportRange);
+  const totalSales = tx.reduce((s,t)=>s+t.total,0);
+  const itemsSold = tx.reduce((s,t)=>s+t.items.reduce((a,i)=>a+i.qty,0),0);
+  const avgBill = tx.length ? totalSales/tx.length : 0;
+
+  $("#reportTickets").innerHTML = [
+    ["Total Sales", fmt(totalSales), "in selected range"],
+    ["Total Bills", tx.length, "transactions"],
+    ["Avg. Bill Value", fmt(avgBill), "per transaction"],
+    ["Items Sold", itemsSold, "units across all bills"]
+  ].map(([label,val,sub]) => `<div class="ticket"><small>${esc(label)}</small><strong>${val}</strong><span>${esc(sub)}</span></div>`).join("");
+
+  const byProduct = {};
+  const byCategory = {};
+  tx.forEach(t => t.items.forEach(i => {
+    if(!byProduct[i.name]) byProduct[i.name] = { qty:0, revenue:0, category:i.category };
+    byProduct[i.name].qty += i.qty; byProduct[i.name].revenue += i.price*i.qty;
+    byCategory[i.category] = (byCategory[i.category]||0) + i.price*i.qty;
+  }));
+  const topProducts = Object.entries(byProduct).sort((a,b)=>b[1].revenue-a[1].revenue).slice(0,8);
+  $("#topProductsLedger").innerHTML = topProducts.length ? topProducts.map(([name,d],idx) => `
+    <div class="ledger-row">
+      ${thumb(d.category)}
+      <div class="ledger-main"><strong>${esc(name)}</strong><small>${d.qty} units sold</small></div>
+      <div class="ledger-value"><strong>${fmt(d.revenue)}</strong>#${idx+1}</div>
+    </div>
+  `).join("") : `<p class="empty-note">No sales in this range yet.</p>`;
+
+  const catEntries = Object.entries(byCategory).sort((a,b)=>b[1]-a[1]);
+  const maxCat = Math.max(...catEntries.map(e=>e[1]), 1);
+  $("#categoryChart").innerHTML = catEntries.length ? catEntries.map(([cat,val]) => `
+    <div class="hbar-row"><div class="hbar-label">${esc(cat)}</div><div class="hbar-track"><div class="hbar-fill" style="width:${Math.round(val/maxCat*100)}%"></div></div><div class="hbar-val">${fmt(val)}</div></div>
+  `).join("") : `<p class="empty-note">No sales in this range yet.</p>`;
+}
+
+/* ================= MODALS / MISC ================= */
+function closeGenericModal(){ $("#genericBackdrop").classList.remove("show"); editingProductId=null; editingCustomerId=null; }
+function closeReceiptModal(){ $("#receiptBackdrop").classList.remove("show"); }
+
+function resetStoreData(){
+  $("#genericModalTitle").textContent = "Reset Store Data";
+  $("#genericModalBody").innerHTML = `
+    <p class="confirm-text">This clears every bill you've rung up and restores the original catalog stock levels and customer directory. This can't be undone.</p>
+    <div class="form-actions"><button class="btn btn-ghost" id="resetCancel">Cancel</button><button class="btn btn-danger" id="resetConfirm">Reset everything</button></div>
+  `;
+  $("#genericBackdrop").classList.add("show");
+  $("#resetCancel").addEventListener("click", closeGenericModal);
+  $("#resetConfirm").addEventListener("click", () => {
+    state.products = buildCatalog();
+    state.customers = buildCustomers();
+    state.transactions = [];
+    state.nextTxId = 1;
+    state.nextCustId = state.customers.length+1;
+    state.nextProdId = state.products.length+1;
+    cart = [];
+    saveState();
+    closeGenericModal();
+    switchView(currentView);
+    toast("Store data reset");
+  });
+}
+
+/* ================= GLOBAL SEARCH ================= */
+function renderGlobalSearch(term){
+  const box = $("#searchResults");
+  if(!term.trim()){ box.classList.remove("show"); box.innerHTML=""; return; }
+  const t = term.trim().toLowerCase();
+  const matches = state.products.filter(p => p.name.toLowerCase().includes(t) || p.sku.toLowerCase().includes(t)).slice(0,8);
+  box.innerHTML = matches.length ? matches.map(p => `
+    <div class="sr-item" data-id="${p.id}">
+      <div class="sr-thumb" style="background:#${CATEGORY_BG[p.category]||"E7EBDC"};border-radius:6px;"></div>
+      <div class="sr-info"><strong>${esc(p.name)}</strong><small>${esc(p.sku)} · ${fmt(p.price)} · ${p.stock} in stock</small></div>
+    </div>
+  `).join("") : `<div class="sr-empty">No products found for "${esc(term)}"</div>`;
+  box.classList.add("show");
+}
+
+/* ================= EVENT WIRING ================= */
+function wireEvents(){
+  $$(".nav-item").forEach(b => b.addEventListener("click", () => switchView(b.dataset.view)));
+  $("#quickBillBtn").addEventListener("click", () => switchView("billing"));
+  $("#hamburger").addEventListener("click", () => { $("#sidebar").classList.add("open"); $("#sidebarBackdrop").classList.add("show"); });
+  $("#sidebarBackdrop").addEventListener("click", closeSidebar);
+  $("#resetDataBtn").addEventListener("click", resetStoreData);
+
+  $("#globalSearch").addEventListener("input", e => renderGlobalSearch(e.target.value));
+  $("#globalSearch").addEventListener("blur", () => setTimeout(()=>$("#searchResults").classList.remove("show"), 150));
+  $("#searchResults").addEventListener("click", e => {
+    const row = e.target.closest(".sr-item");
+    if(!row) return;
+    addToCart(Number(row.dataset.id));
+    switchView("billing");
+    $("#globalSearch").value = "";
+    $("#searchResults").classList.remove("show");
+    toast("Added to bill");
+  });
+
+  $("#fullscreenBtn").addEventListener("click", () => {
+    if(!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+    else document.exitFullscreen?.();
+  });
+  document.addEventListener("fullscreenchange", () => {
+    const on = !!document.fullscreenElement;
+    $("#fsExpandIcon").style.display = on ? "none" : "";
+    $("#fsCompressIcon").style.display = on ? "" : "none";
+  });
+
+  // Billing
+  $("#posCategoryChips").addEventListener("click", e => {
+    const b = e.target.closest(".cat-chip"); if(!b) return;
+    posCategory = b.dataset.cat; renderBilling();
+  });
+  $("#posSearch").addEventListener("input", e => { posSearchTerm = e.target.value; renderPosGrid(); });
+  $("#posProductGrid").addEventListener("click", e => {
+    const card = e.target.closest(".product-card"); if(!card) return;
+    addToCart(Number(card.dataset.id));
+  });
+  $("#cartList").addEventListener("click", e => {
+    const btn = e.target.closest("button"); if(!btn) return;
+    const id = Number(btn.dataset.id);
+    if(btn.dataset.act==="inc") changeQty(id, 1);
+    if(btn.dataset.act==="dec") changeQty(id, -1);
+    if(btn.dataset.act==="rm") { cart = cart.filter(c=>c.id!==id); renderCart(); }
+  });
+  $("#payMethods").addEventListener("click", e => {
+    const b = e.target.closest(".pay-btn"); if(!b) return;
+    payMethod = b.dataset.method;
+    $$(".pay-btn").forEach(x=>x.classList.toggle("active", x===b));
+  });
+  $("#checkoutBtn").addEventListener("click", checkout);
+  $("#clearCartBtn").addEventListener("click", () => { cart=[]; renderCart(); });
+  $("#receiptClose").addEventListener("click", closeReceiptModal);
+  $("#receiptBackdrop").addEventListener("click", e => { if(e.target.id==="receiptBackdrop") closeReceiptModal(); });
+  $("#printReceiptBtn").addEventListener("click", () => window.print());
+
+  // Inventory
+  $("#invSearch").addEventListener("input", e => { invSearchTerm = e.target.value; invPage=1; renderInventory(); });
+  $("#invCategoryFilter").addEventListener("change", e => { invCategoryTerm = e.target.value; invPage=1; renderInventory(); });
+  $("#addProductBtn").addEventListener("click", () => openProductModal(null));
+  $("#invTableBody").addEventListener("click", e => {
+    const btn = e.target.closest("button"); if(!btn) return;
+    const id = Number(btn.dataset.id);
+    if(btn.dataset.act==="edit-prod") openProductModal(id);
+    if(btn.dataset.act==="del-prod") confirmDeleteProduct(id);
+  });
+
+  // Customers
+  $("#custSearch").addEventListener("input", e => { custSearchTerm = e.target.value; custPage=1; renderCustomers(); });
+  $("#addCustomerBtn").addEventListener("click", () => openCustomerModal(null));
+  $("#custTableBody").addEventListener("click", e => {
+    const btn = e.target.closest("button"); if(!btn) return;
+    const id = Number(btn.dataset.id);
+    if(btn.dataset.act==="edit-cust") openCustomerModal(id);
+    if(btn.dataset.act==="del-cust") confirmDeleteCustomer(id);
+  });
+
+  // Reports
+  $("#reportRangeChips").addEventListener("click", e => {
+    const b = e.target.closest(".range-chip"); if(!b) return;
+    reportRange = b.dataset.range;
+    $$(".range-chip").forEach(x=>x.classList.toggle("active", x===b));
+    renderReports();
+  });
+
+  // Generic modal
+  $("#genericModalClose").addEventListener("click", closeGenericModal);
+  $("#genericBackdrop").addEventListener("click", e => { if(e.target.id==="genericBackdrop") closeGenericModal(); });
+  document.addEventListener("keydown", e => {
+    if(e.key === "Escape"){ closeGenericModal(); closeReceiptModal(); }
+  });
+}
+
+/* ================= CLOCK ================= */
+function tickClock(){
+  const el = $("#shiftClock");
+  if(el) el.textContent = new Date().toLocaleTimeString("en-IN", {hour:"2-digit",minute:"2-digit"});
+}
+
+/* ================= BOOT ================= */
+function boot(){
+  initState();
+  wireEvents();
+  switchView("dashboard");
+  tickClock();
+  setInterval(tickClock, 30000);
+
+  const fill = $("#bootFill");
+  requestAnimationFrame(() => { fill.style.width = "100%"; });
+  setTimeout(() => { $("#bootScreen").classList.add("hide"); }, 380);
+}
+
+if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
+else boot();
